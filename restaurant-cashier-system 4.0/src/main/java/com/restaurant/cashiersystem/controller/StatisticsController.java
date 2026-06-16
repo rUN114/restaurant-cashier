@@ -1,0 +1,121 @@
+package com.restaurant.cashiersystem.controller;
+
+import com.restaurant.cashiersystem.common.Result;
+import com.restaurant.cashiersystem.service.StatisticsService;
+import com.restaurant.cashiersystem.util.JwtUtil;
+import io.jsonwebtoken.Claims;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
+@Tag(name = "统计分析", description = "菜品销量、营业额、支付方式、趋势等综合统计")
+@RestController
+@RequestMapping("/api/statistics")
+public class StatisticsController {
+
+    @Autowired
+    private StatisticsService statisticsService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    // ========= 菜品销售统计 =========
+    @GetMapping("/dish-sales-count")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> dishSalesCount(
+            @RequestParam(required = false) Long storeId,
+            @RequestParam String month) {
+        return Result.success(statisticsService.getDishSalesCount(storeId, month));
+    }
+
+    @GetMapping("/dish-sales-amount")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> dishSalesAmount(
+            @RequestParam(required = false) Long storeId,
+            @RequestParam String month) {
+        return Result.success(statisticsService.getDishSalesAmount(storeId, month));
+    }
+
+    @GetMapping("/category-sales")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> categorySales(
+            @RequestParam(required = false) Long storeId,
+            @RequestParam String month) {
+        return Result.success(statisticsService.getCategorySales(storeId, month));
+    }
+
+    @GetMapping("/store-sales")
+    @PreAuthorize("hasAuthority('admin_global')")
+    public Result<List<Map<String, Object>>> storeSales(@RequestParam String month) {
+        return Result.success(statisticsService.getStoreSales(month));
+    }
+
+    // ========= 营业额统计 =========
+    @GetMapping("/store-turnover")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<BigDecimal> storeTurnover(@RequestParam(required = false) Long storeId) {
+        return Result.success(statisticsService.getStoreTurnover(storeId));
+    }
+
+    /**
+     * 今日营业额（融合后：支持服务员看自己、其他人看门店）
+     */
+    @GetMapping("/today-turnover")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store','cashier','waiter')")
+    public Result<BigDecimal> todayTurnover(
+            @RequestParam(required = false) Long storeId,
+            HttpServletRequest request) {
+
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            Claims claims = jwtUtil.parseToken(token);
+            String roleCode = (String) claims.get("roleCode");
+            Long userId = Long.valueOf(claims.getSubject());
+
+            // 服务员：只看自己开单的今日营业额
+            if ("waiter".equals(roleCode)) {
+                BigDecimal amount = statisticsService.getTodayTurnoverForWaiter(userId);
+                return Result.success(amount);
+            }
+            // 管理员、店长、收银员：按门店查询
+            return Result.success(statisticsService.getTodayTurnover(storeId));
+        }
+        return Result.error("未登录");
+    }
+
+    @GetMapping("/month-turnover")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<BigDecimal> monthTurnover(@RequestParam(required = false) Long storeId) {
+        return Result.success(statisticsService.getMonthTurnover(storeId));
+    }
+
+    @GetMapping("/daily-turnover-trend")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> dailyTurnoverTrend(
+            @RequestParam String month,
+            @RequestParam(required = false) Long storeId) {
+        return Result.success(statisticsService.getDailyTurnoverTrend(month, storeId));
+    }
+
+    @GetMapping("/payment-type-statistics")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> paymentTypeStatistics(
+            @RequestParam String month,
+            @RequestParam(required = false) Long storeId) {
+        return Result.success(statisticsService.getPaymentTypeStatistics(month, storeId));
+    }
+
+    @GetMapping("/store-month-turnover")
+    @PreAuthorize("hasAuthority('admin_global')")
+    public Result<List<Map<String, Object>>> storeMonthTurnover(@RequestParam String month) {
+        return Result.success(statisticsService.getStoreMonthTurnover(month));
+    }
+}

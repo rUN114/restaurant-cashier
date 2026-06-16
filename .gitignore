@@ -1,0 +1,31 @@
+# IDE
+.idea/
+*.iml
+
+# Build output
+target/
+dist/
+node_modules/
+*.class
+
+# Logs
+logs/
+*.log
+
+# Archives
+*.zip
+
+# Deployment scripts (may contain credentials)
+deploy_jar.py
+run_sql.py
+upload.py
+
+# Generated files
+openapi.json
+
+# Binary docs
+*.docx
+
+# OS
+.DS_Store
+Thumbs.db

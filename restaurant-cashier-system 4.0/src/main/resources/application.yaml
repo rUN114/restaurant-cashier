@@ -1,0 +1,59 @@
+server:
+  port: 8088
+
+spring:
+  profiles:
+    active: dev
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/restaurant_chain?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowMultiQueries=true
+    username: root
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  servlet:
+    multipart:
+      max-file-size: 10MB       # 单个文件最大 10MB
+      max-request-size: 20MB    # 整个请求最大 20MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    lazy-loading-enabled: true
+    aggressive-lazy-loading: false
+    cache-enabled: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted_at
+      logic-not-delete-value: "NULL"
+      logic-delete-value: "NOW()"
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 30m
+      cache-null-values: false
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000
+
+# tianai-captcha 行为验证码
+captcha:
+  prefix: captcha
+  expire:
+    default: 120000            # 默认过期时间 2分钟
+  init-default-resource: true  # 加载系统自带滑块模板
+  local-cache-enabled: false

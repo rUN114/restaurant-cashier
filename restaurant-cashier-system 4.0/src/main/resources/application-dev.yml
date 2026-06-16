@@ -1,0 +1,8 @@
+file:
+  upload:
+    path: D:/app/images/
+
+captcha:
+  tianai:
+    enabled: false   # 开发环境关闭验证码
+    expire-seconds: 120
