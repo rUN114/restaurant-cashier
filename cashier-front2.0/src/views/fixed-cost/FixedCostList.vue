@@ -211,16 +211,3 @@ const handleDelete = async (id) => {
 }
 </script>
 
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.filter-group {
-  display: flex;
-  align-items: center;
-}
-</style>

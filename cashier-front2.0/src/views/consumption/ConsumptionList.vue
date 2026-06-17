@@ -87,6 +87,7 @@ import {
 } from '@/api'
 import { useStoreFilter } from '@/composables/useStoreFilter'
 import { usePagination } from '@/composables/usePagination'
+import { createLookup } from '@/composables/useLookup'
 import { ElMessage } from 'element-plus'
 
 // 使用组合函数
@@ -121,11 +122,7 @@ const {
 )
 
 // 获取原料名称（通过materialId映射）
-const getMaterialName = (materialId) => {
-  if (!materialId) return '-'
-  const material = materials.value.find((m) => m.id === materialId)
-  return material ? material.name : '-'
-}
+const getMaterialName = createLookup(materials, 'id', 'name')
 
 // 加载当前门店的订单
 const loadOrders = async () => {
@@ -181,16 +178,3 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.filter-group {
-  display: flex;
-  align-items: center;
-}
-</style>

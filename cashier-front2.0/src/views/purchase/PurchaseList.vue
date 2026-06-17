@@ -72,6 +72,7 @@ import { ref, onMounted } from 'vue'
 import { getPurchasesByStorePage, getAllMaterials } from '@/api'
 import { useStoreFilter } from '@/composables/useStoreFilter'
 import { usePagination } from '@/composables/usePagination'
+import { createLookup } from '@/composables/useLookup'
 import { ElMessage } from 'element-plus'
 
 // 门店筛选
@@ -94,11 +95,7 @@ const { pageNum, pageSize, total, loading, data: purchases, load, onPageChange, 
 const materials = ref([])
 
 // 获取原料名称
-const getMaterialName = (materialId) => {
-  if (!materialId) return '-'
-  const material = materials.value.find((m) => m.id === materialId)
-  return material ? material.name : '-'
-}
+const getMaterialName = createLookup(materials, 'id', 'name')
 
 // 加载原料列表（用于显示原料名称）
 const loadMaterials = async () => {
@@ -127,16 +124,3 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.filter-group {
-  display: flex;
-  align-items: center;
-}
-</style>

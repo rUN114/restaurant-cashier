@@ -8,15 +8,14 @@ import i18n from '@/locales'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+// 按需注册 Element Plus 图标（替代 import * 全量注册）
+import { registerIcons } from '@/icons'
 
 import '@/styles/global.scss'
 
 const app = createApp(App)
 
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
-}
+registerIcons(app)
 
 app.use(createPinia())
 app.use(router)

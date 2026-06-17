@@ -150,7 +150,7 @@ const user = useUserStore()
 const storeId = computed(() => user.storeId)
 const roleCode = computed(() => user.roleCode) // 已映射：ADMIN / STORE_ADMIN / CASHIER / WAITER
 
-const selectedStoreId = ref('all') // 管理员默认“全部门店”
+const selectedStoreId = ref('all') // 管理员默认”全部门店”
 const storeList = ref([]) // 管理员可选择的门店列表
 
 const dishes = ref([])
@@ -175,7 +175,7 @@ const form = ref({
 // 图片路径处理（已配置代理，直接使用）
 const getImageUrl = (url) => url || ''
 
-// 根据门店ID获取门店名称
+// 根据门店ID获取门店名称（管理员专用，空值显示"总部"）
 const getStoreName = (sid) => {
   if (!sid) return '总部'
   const store = storeList.value.find((s) => s.id === sid)
@@ -351,12 +351,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
 .dish-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

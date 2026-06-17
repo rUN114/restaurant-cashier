@@ -57,13 +57,8 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, onMounted, nextTick, computed } from 'vue'
-// ECharts 动态导入（仅在用户访问时加载 ~1MB）
-let echartsModule = null
-const getEcharts = async () => {
-  if (!echartsModule) echartsModule = await import('echarts')
-  return echartsModule
-}
+import { ref, onMounted, computed } from 'vue'
+import { useEcharts } from '@/composables/useEcharts'
 import { useUserStore } from '@/stores/user'
 const { t } = useI18n()
 import { getAllStores } from '@/api'
@@ -73,6 +68,8 @@ import request from '@/utils/request'
 const user = useUserStore()
 const isAdmin = computed(() => user.roleCode === 'ADMIN')
 const storeId = computed(() => user.storeId)
+
+const { getEcharts } = useEcharts()
 
 const selectedMonth = ref('2026-05')  // 默认当月
 const selectedStoreId = ref(null)     // 管理员默认全部门店

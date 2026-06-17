@@ -19,8 +19,9 @@ import {
   Notebook,
   Money,
   UserFilled,
-  Globe,
+  Connection,
   ArrowDown,
+  Clock,
 } from '@element-plus/icons-vue'
 
 const icons = {
@@ -41,8 +42,10 @@ const icons = {
   Notebook,
   Money,
   UserFilled,
-  Globe,
+  // Connection 注册为 Globe 以兼容模板中的 <Globe /> 引用
+  Globe: Connection,
   ArrowDown,
+  Clock,
 }
 
 export function registerIcons(app) {

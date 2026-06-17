@@ -116,6 +116,7 @@ import {
 } from '@/api'
 const { t } = useI18n()
 import { useStoreFilter } from '@/composables/useStoreFilter'
+import { createLookup } from '@/composables/useLookup'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 // 使用组合函数
@@ -137,19 +138,9 @@ const form = ref({
   usedQuantity: null,
 })
 
-// 获取原料名称
-const getMaterialName = (materialId) => {
-  if (!materialId) return '-'
-  const material = materials.value.find((m) => m.id === materialId)
-  return material ? material.name : '-'
-}
-
-// 获取菜品名称
-const getDishName = (dishId) => {
-  if (!dishId) return '-'
-  const dish = dishes.value.find((d) => d.id === dishId)
-  return dish ? dish.name : '-'
-}
+// 获取原料名称 / 菜品名称
+const getMaterialName = createLookup(materials, 'id', 'name')
+const getDishName = createLookup(dishes, 'id', 'name')
 
 // 加载当前门店的菜品
 const loadDishes = async () => {
@@ -265,16 +256,3 @@ const handleDelete = async (id) => {
 }
 </script>
 
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.selector-group {
-  display: flex;
-  align-items: center;
-}
-</style>

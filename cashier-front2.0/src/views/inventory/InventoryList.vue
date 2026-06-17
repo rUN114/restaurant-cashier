@@ -106,6 +106,7 @@ import {
   adjustInventory,
 } from '@/api'
 import { useStoreFilter } from '@/composables/useStoreFilter'
+import { createLookup } from '@/composables/useLookup'
 import { ElMessage } from 'element-plus'
 
 const { stores, selectedStoreId, isLocked, loadStores, getStoreName } = useStoreFilter()
@@ -180,26 +181,10 @@ const submitStockAdjust = async () => {
   }
 }
 
-// 获取原料名称
-const getMaterialName = (materialId) => {
-  if (!materialId) return '-'
-  const material = materials.value.find((m) => m.id === materialId)
-  return material ? material.name : '-'
-}
-
-// 获取原料单位
-const getMaterialUnit = (materialId) => {
-  if (!materialId) return '-'
-  const material = materials.value.find((m) => m.id === materialId)
-  return material ? material.unit || '-' : '-'
-}
-
-// 获取原料预警值
-const getMaterialWarnStock = (materialId) => {
-  if (!materialId) return '-'
-  const material = materials.value.find((m) => m.id === materialId)
-  return material ? material.warningStock || '-' : '-'
-}
+// 获取原料名称/单位/预警值
+const getMaterialName = createLookup(materials, 'id', 'name')
+const getMaterialUnit = createLookup(materials, 'id', 'unit')
+const getMaterialWarnStock = createLookup(materials, 'id', 'warningStock')
 
 // 判断库存是否不足
 const isStockLow = (row) => {
@@ -243,16 +228,3 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.filter-group {
-  display: flex;
-  align-items: center;
-}
-</style>

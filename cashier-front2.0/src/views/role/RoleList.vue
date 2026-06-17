@@ -117,11 +117,3 @@ const handleDelete = async (id) => {
 onMounted(loadData)
 </script>
 
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-</style>

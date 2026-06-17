@@ -75,13 +75,8 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, onMounted, nextTick, computed } from 'vue'
-// ECharts 动态导入（仅在用户访问报表页时加载 ~1MB）
-let echartsModule = null
-const getEcharts = async () => {
-  if (!echartsModule) echartsModule = await import('echarts')
-  return echartsModule
-}
+import { ref, onMounted, computed } from 'vue'
+import { useEcharts } from '@/composables/useEcharts'
 import { useUserStore } from '@/stores/user'
 const { t } = useI18n()
 import { getAllStores } from '@/api'
@@ -92,6 +87,8 @@ import { ElMessage } from 'element-plus'
 const user = useUserStore()
 const isAdmin = computed(() => user.roleCode === 'ADMIN')
 const storeId = computed(() => user.storeId)
+
+const { getEcharts } = useEcharts()
 
 // 筛选条件
 const now = new Date()

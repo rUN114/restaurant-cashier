@@ -31,13 +31,15 @@ request.interceptors.response.use(
   (err) => {
     // 401 时清除登录态并跳回登录页
     if (err.response?.status === 401) {
-      const cookies = useCookies()
-      cookies.remove('cashier-token')
-      cookies.remove('cashier-role')
-      cookies.remove('cashier-store-id')
-      router.push('/login')
+      // 复用 userStore.logout() 以保持清除逻辑单一；
+      // 先清除 cookie 再跳转，避免登录页读到残留 token
+      import('@/stores/user').then(({ useUserStore }) => {
+        useUserStore().logout()
+        router.push('/login')
+      })
+    } else {
+      ElMessage.error(err.response?.data?.msg || '请求失败')
     }
-    ElMessage.error(err.response?.data?.msg || '请求失败')
     return Promise.reject(err)
   },
 )

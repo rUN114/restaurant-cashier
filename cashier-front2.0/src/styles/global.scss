@@ -17,6 +17,14 @@ body {
   background-color: #f0f2f5;
 }
 
+// 页面头部（标题 + 操作区），替代各页面重复的 .page-header scoped 样式
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 // 白色卡片（大部分内容区域可套用）
 .white-card {
   background: #ffffff;
@@ -24,7 +32,7 @@ body {
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   transition: box-shadow 0.2s;
-  
+
   &:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   }
@@ -46,6 +54,13 @@ body {
   gap: 12px;
 }
 
+// 分页组件
+.pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 // 页面标题（可选）
 .page-title {
   font-size: 20px;
@@ -54,4 +69,10 @@ body {
   color: #1f2f3d;
   padding-left: 8px;
   border-left: 4px solid #409eff;
+}
+
+// 筛选区
+.filter-group {
+  display: flex;
+  align-items: center;
 }

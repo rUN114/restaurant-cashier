@@ -123,10 +123,3 @@ const showDetail = async (orderId) => {
 onMounted(load)
 </script>
 
-<style scoped>
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-</style>

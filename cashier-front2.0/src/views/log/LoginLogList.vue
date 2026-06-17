@@ -6,16 +6,16 @@
         <el-table-column prop="id" :label="$t('table.id')" width="60" />
         <el-table-column prop="userId" label="用户ID" width="80" />
         <el-table-column prop="storeId" :label="$t('table.store')" width="80" />
-        <el-table-column prop="loginIp" label="{{ $t('login.loginBtn') }}IP" width="140" />
+        <el-table-column prop="loginIp" :label="$t('table.loginIp')" width="140" />
         <el-table-column :label="$t('common.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.loginStatus === 1 ? 'success' : 'danger'">
-              {{ row.loginStatus === 1 ? '成功' : '失败' }}
+              {{ row.loginStatus === 1 ? $t('common.success') : $t('common.failed') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="{{ $t('login.loginBtn') }}时间" width="180" />
-        <el-table-column prop="loginDevice" label="设备" show-overflow-tooltip />
+        <el-table-column prop="createdAt" :label="$t('table.loginTime')" width="180" />
+        <el-table-column prop="loginDevice" :label="$t('table.loginDevice')" show-overflow-tooltip />
       </el-table>
 
       <el-pagination
@@ -42,11 +42,3 @@ const { pageNum, pageSize, total, loading, data, load, onPageChange, onSizeChang
 
 onMounted(load)
 </script>
-
-<style scoped>
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-</style>
