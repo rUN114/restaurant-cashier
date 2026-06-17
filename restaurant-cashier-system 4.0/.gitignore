@@ -31,3 +31,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Node / Logs ###
+node_modules/
+logs/
+*.log
+package.json
+package-lock.json
+gradle/
