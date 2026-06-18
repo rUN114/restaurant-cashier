@@ -551,12 +551,34 @@ const searchMember = async () => {
     if (res.data) recalcCheckout()
   } catch (e) {
     member.value = null
-    ElMessage.warning('未找到会员')
+    // 显示后端返回的具体原因（未找到/已被禁用等）
+    const msg = e?.response?.data?.msg || '未找到会员'
+    ElMessage.warning(msg)
   } finally { memberLoading.value = false }
 }
 
 const registerMemberQuick = async () => {
   if (!memberPhone.value) return
+  // 先查一下是否已注册
+  try {
+    const existRes = await memberApi.searchMemberByPhone(memberPhone.value)
+    if (existRes.data) {
+      if (existRes.data.status !== 1) {
+        ElMessage.warning('该会员已被禁用，无法注册')
+      } else {
+        ElMessage.warning('该手机号已注册')
+      }
+      return
+    }
+  } catch (e) {
+    // 未找到，继续注册
+    const msg = e?.response?.data?.msg
+    if (msg && msg.includes('禁用')) {
+      ElMessage.warning(msg)
+      return
+    }
+  }
+
   try {
     const res = await memberApi.registerMember({ phone: memberPhone.value })
     member.value = res.data
