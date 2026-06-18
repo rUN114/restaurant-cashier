@@ -7,6 +7,7 @@ import com.restaurant.cashiersystem.entity.Order;
 import com.restaurant.cashiersystem.entity.Table;
 import com.restaurant.cashiersystem.entity.OperationLog;
 import com.restaurant.cashiersystem.service.OrderService;
+import com.restaurant.cashiersystem.service.StoreService;
 import com.restaurant.cashiersystem.service.TableService;
 import com.restaurant.cashiersystem.service.OperationLogService;
 import com.restaurant.cashiersystem.util.JwtUtil;
@@ -46,6 +47,9 @@ public class OrderController {
     @Autowired
     private OperationLogService operationLogService;
 
+    @Autowired
+    private StoreService storeService;
+
 
     @GetMapping("/store/{storeId}")
     public Result<List<Order>> getOrdersByStore(@PathVariable Long storeId) {
@@ -63,6 +67,9 @@ public class OrderController {
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store', 'waiter')")
     public Result<Long> createOrder(@RequestBody Order order,
                                     HttpServletRequest request) {
+        // ---- 店铺状态校验：停业店铺禁止开单 ----
+        storeService.checkStoreActive(order.getStoreId());
+
         // ---- 桌台校验：同一桌台已有进行中订单，禁止重复开单 ----
         if (order.getTableId() != null) {
             LambdaQueryWrapper<Order> checkWrapper = new LambdaQueryWrapper<>();
@@ -128,6 +135,9 @@ public class OrderController {
             @RequestParam(required = false) Long memberId,
             @RequestParam(required = false, defaultValue = "false") boolean useMemberDiscount,
             @RequestParam(required = false, defaultValue = "0") int redeemPoints) {
+        // 店铺状态校验
+        Order order = orderService.getById(orderId);
+        if (order != null) storeService.checkStoreActive(order.getStoreId());
         orderService.settleOrder(orderId, cashierId, paymentMethod,
                 discountAmount, finalAmount, memberId, useMemberDiscount, redeemPoints);
         return Result.success();

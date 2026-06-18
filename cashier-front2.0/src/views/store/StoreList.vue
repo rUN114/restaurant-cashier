@@ -36,8 +36,8 @@
         <el-form-item :label="$t('table.phone')"><el-input v-model="form.phone" /></el-form-item>
         <el-form-item :label="$t('common.status')">
           <el-select v-model="form.status">
-            <el-option :label="$t('table.available')" :value="1" />
-            <el-option :label="$t('table.unavailable')" :value="0" />
+            <el-option :label="$t('table.operating')" :value="1" />
+            <el-option :label="$t('table.closed')" :value="0" />
           </el-select>
         </el-form-item>
       </el-form>

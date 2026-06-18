@@ -37,4 +37,13 @@ public class StoreServiceImpl extends ServiceImpl<StoreMapper, Store> implements
         store.setDeletedAt(LocalDateTime.now());
         return updateById(store);
     }
+
+    @Override
+    public void checkStoreActive(Long storeId) {
+        if (storeId == null) return;
+        Store store = getById(storeId);
+        if (store != null && store.getStatus() != null && store.getStatus() == 0) {
+            throw new RuntimeException("店铺已停业，无法操作");
+        }
+    }
 }

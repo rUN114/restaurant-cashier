@@ -118,9 +118,10 @@
             <el-table-column :label="$t('pos.subtotal')" width="80">
               <template #default="{ row }"> ¥{{ (row.price * row.quantity).toFixed(2) }} </template>
             </el-table-column>
-            <el-table-column :label="$t('common.operate')" width="60" v-if="canModifyOrder">
+            <!-- 只要订单进行中，任何人都可以删除菜品 -->
+            <el-table-column :label="$t('common.operate')" width="60">
               <template #default="{ row }">
-                <el-button link type="danger" @click="removeItem(row)">{{ ("common.delete") }}</el-button>
+                <el-button link type="danger" :disabled="!canModifyOrder" @click="removeItem(row)">{{ $t("common.delete") }}</el-button>
               </template>
             </el-table-column>
           </el-table>

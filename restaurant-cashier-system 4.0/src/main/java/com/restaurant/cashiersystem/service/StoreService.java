@@ -23,4 +23,9 @@ public interface StoreService extends IService<Store> {
      * 软删除分店
      */
     boolean deleteStoreLogic(Long storeId);
+
+    /**
+     * 校验店铺是否营业中，若停业则抛出异常
+     */
+    void checkStoreActive(Long storeId);
 }
