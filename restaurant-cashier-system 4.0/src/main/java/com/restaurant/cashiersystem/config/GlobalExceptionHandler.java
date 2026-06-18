@@ -49,6 +49,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception e) {
         log.error("未捕获异常: {}", e.getMessage(), e);
-        return Result.error("服务器异常：" + e.getMessage());
+        return Result.error("服务器内部错误，请联系管理员");
     }
 }

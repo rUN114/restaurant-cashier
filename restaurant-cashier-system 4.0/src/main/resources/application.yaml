@@ -50,10 +50,17 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000
 
+# 文件上传公共路径
+file:
+  upload:
+    path: D:/app/images/
+
 # tianai-captcha 行为验证码
 captcha:
   prefix: captcha
   expire:
     default: 120000            # 默认过期时间 2分钟
+  tianai:
+    expire-seconds: 120        # 验证码有效期
   init-default-resource: true  # 加载系统自带滑块模板
   local-cache-enabled: false

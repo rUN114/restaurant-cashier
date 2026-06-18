@@ -1,8 +1,3 @@
-file:
-  upload:
-    path: D:/app/images/
-
 captcha:
   tianai:
     enabled: true    # 生产环境开启验证码
-    expire-seconds: 120
