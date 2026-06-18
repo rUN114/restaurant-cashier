@@ -64,6 +64,10 @@ export default {
     operationLog: 'Operation Log',
     orderItemLog: 'Item Log',
     changelog: 'Changelog',
+    member: 'Members',
+    memberList: 'Member List',
+    memberLevel: 'Level Config',
+    memberPoints: 'Point Log',
     systemManage: 'System',
   },
   changelog: {

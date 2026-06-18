@@ -64,6 +64,10 @@ export default {
     operationLog: '操作日志',
     orderItemLog: '菜品流水',
     changelog: '更新日志',
+    member: '会员管理',
+    memberList: '会员列表',
+    memberLevel: '等级配置',
+    memberPoints: '积分流水',
     systemManage: '系统管理',
   },
   role: {

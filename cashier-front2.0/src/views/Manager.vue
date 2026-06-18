@@ -3,12 +3,13 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/AppLayout.vue'
 
 const { t } = useI18n()
 
-const menuItems = [
+const menuItems = computed(() => [
   { index: '/manager/home',   icon: 'HomeFilled',   label: t('menu.home') },
   { index: '/manager/pos',    icon: 'ShoppingCart',  label: t('menu.pos') },
   { index: '/manager/orders', icon: 'List',          label: t('menu.orderQuery') },
@@ -53,5 +54,5 @@ const menuItems = [
       { index: '/manager/logs/changelog',  label: t('menu.changelog') },
     ],
   },
-]
+])
 </script>

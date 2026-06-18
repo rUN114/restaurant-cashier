@@ -3,12 +3,13 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/AppLayout.vue'
 
 const { t } = useI18n()
 
-const menuItems = [
+const menuItems = computed(() => [
   { index: '/admin/home',   icon: 'HomeFilled',   label: t('menu.home') },
   { index: '/admin/pos',    icon: 'ShoppingCart',  label: t('menu.pos') },
   { index: '/admin/orders', icon: 'List',          label: t('menu.orderQuery') },
@@ -45,11 +46,11 @@ const menuItems = [
     ],
   },
   {
-    index: 'member', icon: 'UserFilled', label: '会员管理',
+    index: 'member', icon: 'UserFilled', label: t('menu.member'),
     children: [
-      { index: '/admin/members',        label: '会员列表' },
-      { index: '/admin/member-levels',  label: '等级配置' },
-      { index: '/admin/member-points',  label: '积分流水' },
+      { index: '/admin/members',        label: t('menu.memberList') },
+      { index: '/admin/member-levels',  label: t('menu.memberLevel') },
+      { index: '/admin/member-points',  label: t('menu.memberPoints') },
     ],
   },
   { index: '/admin/report', icon: 'TrendCharts', label: t('menu.report') },
@@ -62,5 +63,5 @@ const menuItems = [
       { index: '/admin/logs/changelog',  label: t('menu.changelog') },
     ],
   },
-]
+])
 </script>
