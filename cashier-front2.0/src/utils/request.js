@@ -29,16 +29,25 @@ request.interceptors.request.use((config) => {
 request.interceptors.response.use(
   (res) => res.data,
   (err) => {
+    const status = err.response?.status
+    const msg = err.response?.data?.msg || '请求失败'
+
     // 401 时清除登录态并跳回登录页
-    if (err.response?.status === 401) {
-      // 复用 userStore.logout() 以保持清除逻辑单一；
-      // 先清除 cookie 再跳转，避免登录页读到残留 token
+    if (status === 401) {
       import('@/stores/user').then(({ useUserStore }) => {
         useUserStore().logout()
         router.push('/login')
       })
+    }
+    // 403 分店停用：清除登录态 + 提示 + 跳转
+    else if (status === 403 && msg.includes('分店已停用')) {
+      import('@/stores/user').then(({ useUserStore }) => {
+        useUserStore().logout()
+        router.push('/login')
+      })
+      ElMessage.error(msg)
     } else {
-      ElMessage.error(err.response?.data?.msg || '请求失败')
+      ElMessage.error(msg)
     }
     return Promise.reject(err)
   },

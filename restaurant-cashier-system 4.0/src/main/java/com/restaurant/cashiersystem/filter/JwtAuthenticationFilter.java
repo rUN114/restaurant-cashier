@@ -1,5 +1,7 @@
 package com.restaurant.cashiersystem.filter;
 
+import com.restaurant.cashiersystem.entity.Store;
+import com.restaurant.cashiersystem.service.StoreService;
 import com.restaurant.cashiersystem.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -23,6 +25,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private StoreService storeService;
+
+    /** 不受分店停用限制的路径前缀（总部管理员相关、登录接口、公开接口） */
+    private static final List<String> STORE_CHECK_EXCLUDE_PREFIXES = List.of(
+            "/api/users/login",
+            "/api/users/register",
+            "/api/captcha",
+            "/api/changelogs",
+            "/api/stores",      // 门店管理接口本身不能限制
+            "/api/roles",       // 角色管理不受限
+            "/api/sys-configs", // 系统配置不受限
+            "/swagger-ui",
+            "/v3/api-docs",
+            "/images",
+            "/favicon.ico"
+    );
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -34,9 +54,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Claims claims = jwtUtil.parseToken(token);
                 String userId = claims.getSubject();
                 String roleCode = (String) claims.get("roleCode");
-                System.out.println("JWT 解析成功 => userId:" + userId + ", roleCode:" + roleCode);
 
                 if (roleCode != null) {
+                    // ========== 分店停用校验（非 admin_global 用户） ==========
+                    if (!"admin_global".equals(roleCode)) {
+                        Long storeId = claims.get("storeId", Long.class);
+                        if (storeId != null && !isExcludedPath(request.getRequestURI())) {
+                            Store store = storeService.getStoreById(storeId);
+                            if (store != null && store.getStatus() != null && store.getStatus() == 0) {
+                                response.setContentType("application/json;charset=UTF-8");
+                                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                                response.getWriter().write(
+                                    "{\"code\":403,\"msg\":\"所属分店已停用，操作被拒绝\",\"data\":null}"
+                                );
+                                return;
+                            }
+                        }
+                    }
+                    // ========== 分店状态校验结束 ==========
+
                     List<SimpleGrantedAuthority> authorities = Collections.singletonList(
                             new SimpleGrantedAuthority(roleCode)
                     );
@@ -44,14 +80,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(userId, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 } else {
-                    System.out.println("JWT 中缺失 roleCode，无法分配权限");
                     SecurityContextHolder.clearContext();
                 }
             } catch (Exception e) {
-                System.out.println("JWT 解析失败：" + e.getMessage());
                 SecurityContextHolder.clearContext();
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    /** 判断请求路径是否属于免检列表 */
+    private boolean isExcludedPath(String uri) {
+        for (String prefix : STORE_CHECK_EXCLUDE_PREFIXES) {
+            if (uri.startsWith(prefix)) return true;
+        }
+        return false;
     }
 }

@@ -10,6 +10,7 @@ import com.restaurant.cashiersystem.entity.Role;
 import com.restaurant.cashiersystem.entity.Store;
 import com.restaurant.cashiersystem.entity.User;
 import com.restaurant.cashiersystem.service.LoginLogService;
+import com.restaurant.cashiersystem.service.StoreService;
 import com.restaurant.cashiersystem.service.UserService;
 import cloud.tianai.captcha.application.ImageCaptchaApplication;
 import cloud.tianai.captcha.validator.common.model.dto.ImageCaptchaTrack;
@@ -55,6 +56,9 @@ public class UserController {
 
     @Autowired
     private ImageCaptchaApplication captchaApplication;
+
+    @Autowired
+    private StoreService storeService;
 
     @Value("${captcha.tianai.enabled:true}")
     private boolean captchaEnabled;
@@ -220,6 +224,24 @@ public class UserController {
                 log.error("登录失败：账号已禁用或已删除");
                 return Result.error("账号已禁用或已删除");
             }
+
+            // ========== 分店状态校验：停用分店的员工禁止登录 ==========
+            if (user.getStoreId() != null) {
+                Store store = storeService.getStoreById(user.getStoreId());
+                if (store != null && store.getStatus() != null && store.getStatus() == 0) {
+                    Role userRole = userService.getUserRole(user.getId());
+                    String roleCode = userRole != null ? userRole.getRoleCode() : null;
+                    if (!"admin_global".equals(roleCode)) {
+                        loginLog.setLoginStatus(0);
+                        loginLog.setUserId(user.getId());
+                        loginLog.setStoreId(user.getStoreId());
+                        loginLogService.save(loginLog);
+                        log.warn("登录被拒：用户 {} 所属分店 {} 已停用", user.getUsername(), user.getStoreId());
+                        return Result.error(403, "所属分店已停用，无法登录");
+                    }
+                }
+            }
+            // ========== 分店状态校验结束 ==========
 
             // 登录成功
             loginLog.setLoginStatus(1);
