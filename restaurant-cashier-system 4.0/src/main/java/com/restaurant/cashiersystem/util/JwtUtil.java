@@ -3,6 +3,9 @@ package com.restaurant.cashiersystem.util;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -15,11 +18,20 @@ import java.util.Map;
 @Component
 public class JwtUtil {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
+
     @Value("${jwt.secret:${JWT_SECRET}}")
     private String secret;
 
     @Value("${jwt.expiration:86400000}")
     private Long expiration;
+
+    @PostConstruct
+    private void warnIfDefaultSecret() {
+        if ("${JWT_SECRET}".equals(secret)) {
+            log.warn("⚠ JWT 密钥未配置（使用源码默认值），生产环境请设置环境变量 jwt.secret");
+        }
+    }
 
     /**
      * 生成Token（包含角色和门店信息）

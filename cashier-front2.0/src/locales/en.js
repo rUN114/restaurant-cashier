@@ -69,6 +69,9 @@ export default {
     memberLevel: 'Level Config',
     memberPoints: 'Point Log',
     systemManage: 'System',
+    supplyChain: 'Supply Chain',
+    storesAndStaff: 'Stores & Staff',
+    systemLogs: 'System Logs',
   },
   changelog: {
     version: 'Version',

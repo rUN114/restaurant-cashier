@@ -20,6 +20,7 @@ import com.restaurant.cashiersystem.service.TableService;
 import com.restaurant.cashiersystem.util.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +55,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     @Autowired
     private TableService tableService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Override
     public List<Order> getOrdersByStore(Long storeId) {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
@@ -77,6 +81,10 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         Order order = getById(orderId);
         if (order == null) {
             return;
+        }
+        // 防止重复结算：Controller 层幂等检查之外的第二道防线
+        if (!"in_progress".equals(order.getStatus())) {
+            throw new RuntimeException("订单状态为 " + order.getStatus() + "，无法结算");
         }
 
         // 从订单明细计算原始总金额
@@ -181,49 +189,20 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     public BigDecimal getStoreTurnover(Long storeId) {
-        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Order::getStoreId, storeId);
-        wrapper.eq(Order::getStatus, "settled");
-        List<Order> orders = list(wrapper);
-        BigDecimal total = BigDecimal.ZERO;
-        for (Order o : orders) {
-            if (o.getFinalAmount() != null) {
-                total = total.add(o.getFinalAmount());
-            }
-        }
-        return total;
+        // SQL 聚合替代 Java 循环 SUM，避免全量订单拉入内存
+        String sql = "SELECT COALESCE(SUM(final_amount),0) FROM orders WHERE status='settled' AND store_id=?";
+        return jdbcTemplate.queryForObject(sql, BigDecimal.class, storeId);
     }
 
     @Override
     public BigDecimal getTodayTurnover(Long storeId) {
-        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Order::getStoreId, storeId);
-        wrapper.eq(Order::getStatus, "settled");
-        wrapper.ge(Order::getCreatedAt, LocalDateTime.now().toLocalDate().atStartOfDay());
-        List<Order> orders = list(wrapper);
-        BigDecimal total = BigDecimal.ZERO;
-        for (Order o : orders) {
-            if (o.getFinalAmount() != null) {
-                total = total.add(o.getFinalAmount());
-            }
-        }
-        return total;
+        String sql = "SELECT COALESCE(SUM(final_amount),0) FROM orders WHERE status='settled' AND store_id=? AND DATE(settled_at)=CURDATE()";
+        return jdbcTemplate.queryForObject(sql, BigDecimal.class, storeId);
     }
 
     @Override
     public BigDecimal getMonthTurnover(Long storeId) {
-        LocalDateTime firstDayOfMonth = LocalDateTime.now().withDayOfMonth(1).toLocalDate().atStartOfDay();
-        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Order::getStoreId, storeId);
-        wrapper.eq(Order::getStatus, "settled");
-        wrapper.ge(Order::getCreatedAt, firstDayOfMonth);
-        List<Order> orders = list(wrapper);
-        BigDecimal total = BigDecimal.ZERO;
-        for (Order o : orders) {
-            if (o.getFinalAmount() != null) {
-                total = total.add(o.getFinalAmount());
-            }
-        }
-        return total;
+        String sql = "SELECT COALESCE(SUM(final_amount),0) FROM orders WHERE status='settled' AND store_id=? AND YEAR(settled_at)=YEAR(NOW()) AND MONTH(settled_at)=MONTH(NOW())";
+        return jdbcTemplate.queryForObject(sql, BigDecimal.class, storeId);
     }
 }

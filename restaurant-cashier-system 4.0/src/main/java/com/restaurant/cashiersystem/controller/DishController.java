@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -147,6 +148,16 @@ public class DishController {
     public Result<String> uploadImage(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
             return Result.error("文件为空");
+        }
+        // 文件类型白名单
+        Set<String> allowedTypes = Set.of("image/jpeg", "image/png", "image/gif", "image/webp");
+        String contentType = file.getContentType();
+        if (contentType == null || !allowedTypes.contains(contentType)) {
+            return Result.error("仅支持 JPG/PNG/GIF/WebP 格式图片");
+        }
+        // 文件大小限制 5MB
+        if (file.getSize() > 5 * 1024 * 1024) {
+            return Result.error("图片大小不能超过 5MB");
         }
         try {
             String originalFilename = file.getOriginalFilename();

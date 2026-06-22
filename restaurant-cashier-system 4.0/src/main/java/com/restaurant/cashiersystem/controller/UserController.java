@@ -31,9 +31,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +61,9 @@ public class UserController {
 
     @Autowired
     private StoreService storeService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @Value("${captcha.tianai.enabled:true}")
     private boolean captchaEnabled;
@@ -129,6 +134,12 @@ public class UserController {
         User user = new User();
         BeanUtils.copyProperties(userDTO, user);
         user.setId(id);
+
+        // 状态被设为禁用(0)时，撤销该用户所有已签发 token
+        if (userDTO.getStatus() != null && userDTO.getStatus() == 0) {
+            revokeUserToken(id);
+        }
+
         userService.updateById(user);
         return Result.success();
     }
@@ -136,6 +147,7 @@ public class UserController {
     @DeleteMapping("/{id:\\d+}")
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     public Result<Void> deleteUser(@PathVariable Long id) {
+        revokeUserToken(id);
         userService.removeById(id);
         return Result.success();
     }
@@ -307,6 +319,25 @@ public class UserController {
     }
 
     // ===================== 工具方法 =====================
+
+    /** token 黑名单 key 前缀，与 JwtAuthenticationFilter 保持一致 */
+    private static final String TOKEN_REVOKED_PREFIX = "token:revoked:";
+    /** 黑名单保留 30 天，覆盖 token 最长有效期 */
+    private static final Duration REVOKE_TTL = Duration.ofDays(30);
+
+    /**
+     * 撤销用户所有已签发 token：在 Redis 中记录当前时间戳，
+     * JwtAuthenticationFilter 发现 token 签发时间早于此时间戳则拒绝。
+     */
+    private void revokeUserToken(Long userId) {
+        stringRedisTemplate.opsForValue().set(
+                TOKEN_REVOKED_PREFIX + userId,
+                String.valueOf(System.currentTimeMillis()),
+                REVOKE_TTL
+        );
+        log.info("已撤销用户 {} 的所有 token", userId);
+    }
+
     private String getRoleFromToken(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {

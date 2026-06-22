@@ -78,23 +78,21 @@ public class MemberServiceImpl extends ServiceImpl<MemberMapper, Member>
         }
 
         int beforePoints = member.getAvailablePoints();
-
-        // 增加累计消费
         BigDecimal newTotal = member.getTotalConsumption().add(amount);
-        memberMapper.addConsumption(memberId, amount);
 
-        // 增加积分
-        if (points > 0) {
-            memberMapper.addPoints(memberId, points);
-        }
+        // 合并 UPDATE：消费 + 积分一次数据库往返，替代之前两次
+        memberMapper.addConsumptionAndPoints(memberId, amount, Math.max(0, points));
 
         // 积分流水
-        pointLogService.log(memberId, null, 1,
-                points, beforePoints, beforePoints + points,
-                amount, "消费获得积分", null);
+        if (points > 0) {
+            pointLogService.log(memberId, null, 1,
+                    points, beforePoints, beforePoints + points,
+                    amount, "消费获得积分", null);
+        }
 
-        // 自动升级检查
-        checkAndUpgrade(memberId, newTotal);
+        // 自动升级检查：传入已持有的 member 和 newTotal，避免方法内重复查询
+        MemberLevel currentLevel = memberLevelService.getById(member.getLevelId());
+        checkAndUpgrade(member, currentLevel, newTotal);
     }
 
     @Override
@@ -176,22 +174,21 @@ public class MemberServiceImpl extends ServiceImpl<MemberMapper, Member>
 
     /**
      * 检查并自动升级会员等级（只升不降）
+     * @param member 调用方已持有的会员对象（带 FOR UPDATE 锁或最新数据）
+     * @param currentLevel 调用方已查出的当前等级，避免方法内重复查询
+     * @param totalConsumption 已更新的累计消费金额
      */
-    private void checkAndUpgrade(Long memberId, BigDecimal totalConsumption) {
-        Member member = getById(memberId);
-        if (member == null) return;
+    private void checkAndUpgrade(Member member, MemberLevel currentLevel, BigDecimal totalConsumption) {
+        if (member == null || currentLevel == null) return;
 
         MemberLevel targetLevel = memberLevelService.findUpgradeLevel(totalConsumption);
         if (targetLevel == null) return;
 
-        MemberLevel currentLevel = memberLevelService.getById(member.getLevelId());
-        if (currentLevel == null) return;
-
         // 只升不降
         if (targetLevel.getSortOrder() > currentLevel.getSortOrder()) {
-            memberMapper.updateLevel(memberId, targetLevel.getId());
+            memberMapper.updateLevel(member.getId(), targetLevel.getId());
             log.info("会员自动升级: memberId={}, phone={}, {} -> {}",
-                    memberId, member.getPhone(), currentLevel.getName(), targetLevel.getName());
+                    member.getId(), member.getPhone(), currentLevel.getName(), targetLevel.getName());
         }
     }
 }

@@ -17,11 +17,6 @@ request.interceptors.request.use((config) => {
     config.headers.Authorization = 'Bearer ' + token
   }
 
-  if (storeId) {
-    config.params = config.params || {}
-    config.params.store_id = storeId
-  }
-
   return config
 })
 

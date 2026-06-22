@@ -37,10 +37,22 @@ public class SecurityUtils {
     }
 
     /**
-     * 获取当前用户的门店ID（可选，从 token 中解析，需确保 token 包含 storeId）
+     * 获取当前用户的门店ID，从 JWT token 中解析
      */
     public Long getCurrentStoreId() {
-        // 如果 token 中存了 storeId，可以类似解析
-        return null; // 若需要可自己扩展
+        ServletRequestAttributes attributes =
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) return null;
+        HttpServletRequest request = attributes.getRequest();
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtUtil.parseToken(authHeader.substring(7));
+                return claims.get("storeId", Long.class);
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        return null;
     }
 }

@@ -9,12 +9,24 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("operation_logs")
-public class OperationLog {
+public class
+
+
+
+
+
+
+OperationLog {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long storeId;
     private Long operatorId;
     private String targetType;
+
+
+
+
+
     private String targetId;
     private String action;
     private String detail;

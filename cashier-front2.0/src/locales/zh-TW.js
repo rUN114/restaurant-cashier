@@ -69,6 +69,9 @@ export default {
     memberLevel: '等級配置',
     memberPoints: '積分流水',
     systemManage: '系統管理',
+    supplyChain: '供應鏈',
+    storesAndStaff: '門店與人員',
+    systemLogs: '系統日誌',
   },
   changelog: {
     version: '版本號',

@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
  * 格式：{ code: 200, msg: "success", data: T, success: true/false }
  */
 @Data
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Result<T> {
 
     private int code;       // 状态码，200表示成功，其他表示错误

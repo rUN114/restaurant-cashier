@@ -39,4 +39,13 @@ public interface MemberMapper extends BaseMapper<Member> {
     /** 更新会员等级 */
     @Update("UPDATE member SET level_id = #{levelId} WHERE id = #{id}")
     int updateLevel(@Param("id") Long id, @Param("levelId") Long levelId);
+
+    /** 合并更新：消费金额 + 积分 + 订单数，一次 UPDATE 替代两次，减少 DB 往返 */
+    @Update("UPDATE member SET total_consumption = total_consumption + #{amount}, "
+            + "total_orders = total_orders + 1, last_consumption_time = NOW(), "
+            + "available_points = available_points + #{points}, "
+            + "total_points = total_points + #{points} "
+            + "WHERE id = #{id}")
+    int addConsumptionAndPoints(@Param("id") Long id, @Param("amount") BigDecimal amount,
+                                @Param("points") int points);
 }

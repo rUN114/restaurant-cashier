@@ -22,6 +22,7 @@ import {
   Connection,
   ArrowDown,
   Clock,
+  OfficeBuilding,
 } from '@element-plus/icons-vue'
 
 const icons = {
@@ -46,6 +47,7 @@ const icons = {
   Globe: Connection,
   ArrowDown,
   Clock,
+  OfficeBuilding,
 }
 
 export function registerIcons(app) {

@@ -69,6 +69,9 @@ export default {
     memberLevel: '等级配置',
     memberPoints: '积分流水',
     systemManage: '系统管理',
+    supplyChain: '供应链',
+    storesAndStaff: '门店与人员',
+    systemLogs: '系统日志',
   },
   role: {
     admin: '全局管理员',

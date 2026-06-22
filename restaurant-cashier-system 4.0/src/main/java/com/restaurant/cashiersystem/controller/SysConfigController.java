@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,6 +32,7 @@ public class SysConfigController {
      * @param configKey 配置key
      * @return 配置值
      */
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     @GetMapping("/key/{configKey}")
     public Result<String> getConfigValue(@PathVariable String configKey) {
         String value = sysConfigService.getConfigValue(configKey);
@@ -41,6 +43,7 @@ public class SysConfigController {
      * 查询所有系统配置
      * @return 配置列表
      */
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     @GetMapping
     @Cacheable(value = "configs", key = "'all'")
     public Result<List<SysConfig>> getAllConfigs() {
@@ -53,6 +56,7 @@ public class SysConfigController {
      * @param config 配置信息
      * @return 无
      */
+    @PreAuthorize("hasAuthority('admin_global')")
     @PutMapping
     @CacheEvict(value = "configs", allEntries = true)
     public Result<Void> updateConfig(@RequestBody SysConfig config) {

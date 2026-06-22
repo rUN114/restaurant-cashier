@@ -18,11 +18,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -50,19 +53,31 @@ public class OrderController {
     @Autowired
     private StoreService storeService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    /** 订单幂等 key 前缀，TTL 5 分钟防网络重放 */
+    private static final String IDEMPOTENT_ORDER_PREFIX = "idempotent:order:";
+    private static final Duration IDEMPOTENT_TTL = Duration.ofMinutes(5);
+
 
     @GetMapping("/store/{storeId}")
-    public Result<List<Order>> getOrdersByStore(@PathVariable Long storeId) {
+    public Result<List<Order>> getOrdersByStore(@PathVariable Long storeId,
+                                                HttpServletRequest request) {
+        if (!canAccessStore(request, storeId)) return Result.error("无权查看该门店数据");
         List<Order> list = orderService.getOrdersByStore(storeId);
         return Result.success(list);
     }
 
     @GetMapping("/progress/{storeId}")
-    public Result<List<Order>> getInProgressOrders(@PathVariable Long storeId) {
+    public Result<List<Order>> getInProgressOrders(@PathVariable Long storeId,
+                                                    HttpServletRequest request) {
+        if (!canAccessStore(request, storeId)) return Result.error("无权查看该门店数据");
         List<Order> list = orderService.getInProgressOrders(storeId);
         return Result.success(list);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     @PostMapping
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store', 'waiter')")
     public Result<Long> createOrder(@RequestBody Order order,
@@ -103,7 +118,7 @@ public class OrderController {
 
         orderService.save(order);
 
-        // 开单后自动将桌台设为占用（防止前后端状态不一致）
+        // 开单后自动将桌台设为占用
         if (table != null) {
             table.setStatus("occupied");
             tableService.updateById(table);
@@ -112,8 +127,7 @@ public class OrderController {
         // 新增操作日志记录
         OperationLog opLog = new OperationLog();
         opLog.setStoreId(order.getStoreId());
-        Long operatorId = getUserIdFromToken(request);
-        opLog.setOperatorId(operatorId);
+        opLog.setOperatorId(userId);
         opLog.setTargetType("order");
         opLog.setTargetId(order.getId().toString());
         opLog.setAction("openTable");
@@ -134,7 +148,21 @@ public class OrderController {
             @RequestParam(required = false, defaultValue = "0") BigDecimal finalAmount,
             @RequestParam(required = false) Long memberId,
             @RequestParam(required = false, defaultValue = "false") boolean useMemberDiscount,
-            @RequestParam(required = false, defaultValue = "0") int redeemPoints) {
+            @RequestParam(required = false, defaultValue = "0") int redeemPoints,
+            @RequestParam(required = false) String requestId) {
+        // ===== 幂等校验：防止网络重放重复结账 =====
+        if (requestId != null && !requestId.isBlank()) {
+            String idempotentKey = IDEMPOTENT_ORDER_PREFIX + requestId;
+            // SETNX 返回 true = 首次设置成功，返回 false = key 已存在（重复请求）
+            Boolean isFirst = stringRedisTemplate.opsForValue()
+                    .setIfAbsent(idempotentKey, orderId.toString(), IDEMPOTENT_TTL);
+            if (Boolean.FALSE.equals(isFirst)) {
+                log.warn("重复的结账请求已被拦截: orderId={}, requestId={}", orderId, requestId);
+                return Result.success(); // 幂等返回成功，不重复执行业务
+            }
+        }
+        // ===== 幂等校验结束 =====
+
         // 店铺状态校验
         Order order = orderService.getById(orderId);
         if (order != null) storeService.checkStoreActive(order.getStoreId());
@@ -156,8 +184,12 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    public Result<Order> getOrderById(@PathVariable Long id) {
+    public Result<Order> getOrderById(@PathVariable Long id,
+                                      HttpServletRequest request) {
         Order order = orderService.getById(id);
+        if (order != null && !canAccessStore(request, order.getStoreId())) {
+            return Result.error("无权查看该订单");
+        }
         return Result.success(order);
     }
 
@@ -221,6 +253,41 @@ public class OrderController {
                 return Long.valueOf(subject);
             } catch (Exception e) {
                 log.error("解析token失败", e);
+            }
+        }
+        return null;
+    }
+
+    /** 判断当前用户是否有权访问指定门店数据 */
+    private boolean canAccessStore(HttpServletRequest request, Long targetStoreId) {
+        if (targetStoreId == null) return true;
+        String roleCode = getRoleFromToken(request);
+        if ("admin_global".equals(roleCode)) return true;
+        Long userStoreId = getStoreIdFromToken(request);
+        return targetStoreId.equals(userStoreId);
+    }
+
+    private String getRoleFromToken(HttpServletRequest request) {
+        return extractClaim(request, "roleCode", String.class);
+    }
+
+    private Long getStoreIdFromToken(HttpServletRequest request) {
+        return extractClaim(request, "storeId", Long.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T extractClaim(HttpServletRequest request, String key, Class<T> type) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtUtil.parseToken(authHeader.substring(7));
+                Object value = claims.get(key);
+                if (type == Long.class && value instanceof Integer) {
+                    return (T) Long.valueOf((Integer) value);
+                }
+                return (T) value;
+            } catch (Exception e) {
+                log.debug("提取 JWT claim 失败: key={}", key);
             }
         }
         return null;

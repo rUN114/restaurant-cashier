@@ -7,7 +7,7 @@
         :default-active="route.path"
         background-color="#304156"
         text-color="#bfcbd9"
-        active-text-color="#ffd04b"
+        active-text-color="#66b1ff"
       >
         <template v-for="item in menuItems" :key="item.index">
           <!-- 无子菜单的普通项 -->
@@ -100,6 +100,7 @@ const handleLogout = async () => {
   line-height: 60px;
   color: #fff;
   font-size: 20px;
+  font-weight: 600;
   text-align: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }

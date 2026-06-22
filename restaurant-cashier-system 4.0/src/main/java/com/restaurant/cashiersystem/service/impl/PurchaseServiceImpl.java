@@ -18,13 +18,15 @@ public class PurchaseServiceImpl extends ServiceImpl<PurchaseMapper, Purchase> i
     private MaterialInventoryService materialInventoryService;
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public boolean save(Purchase purchase) {
         boolean save = super.save(purchase);
 
+        // FOR UPDATE 行锁防止并发采购同一原料时丢失更新
         MaterialInventory inventory = materialInventoryService.lambdaQuery()
                 .eq(MaterialInventory::getStoreId, purchase.getStoreId())
                 .eq(MaterialInventory::getMaterialId, purchase.getMaterialId())
+                .last("FOR UPDATE")
                 .one();
 
         if (inventory == null) {

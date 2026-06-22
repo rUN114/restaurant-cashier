@@ -4,9 +4,9 @@ import request from '@/utils/request'
 export const getOrdersByStore = (storeId) => request.get(`/orders/store/${storeId}`)
 export const getInProgressOrders = (storeId) => request.get(`/orders/progress/${storeId}`)
 export const createOrder = (data) => request.post('/orders', data)
-export const settleOrder = (orderId, cashierId, paymentMethod, discountAmount, finalAmount, memberId, useMemberDiscount, redeemPoints) =>
+export const settleOrder = (orderId, cashierId, paymentMethod, discountAmount, finalAmount, memberId, useMemberDiscount, redeemPoints, requestId) =>
   request.put(`/orders/settle/${orderId}`, null, {
-    params: { cashierId, paymentMethod, discountAmount, finalAmount, memberId, useMemberDiscount, redeemPoints },
+    params: { cashierId, paymentMethod, discountAmount, finalAmount, memberId, useMemberDiscount, redeemPoints, requestId },
   })
 export const cancelOrder = (orderId) => request.put(`/orders/cancel/${orderId}`)
 export const getOrderById = (id) => request.get(`/orders/${id}`)

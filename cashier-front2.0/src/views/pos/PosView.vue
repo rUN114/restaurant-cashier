@@ -560,32 +560,24 @@ const searchMember = async () => {
 
 const registerMemberQuick = async () => {
   if (!memberPhone.value) return
-  // 先查一下是否已注册
+  // 先查是否已注册
   try {
     const existRes = await memberApi.searchMemberByPhone(memberPhone.value)
     if (existRes.data) {
-      if (existRes.data.status !== 1) {
-        ElMessage.warning('该会员已被禁用，无法注册')
-      } else {
-        ElMessage.warning('该手机号已注册')
-      }
+      ElMessage.warning('该手机号已注册')
       return
     }
-  } catch (e) {
-    // 未找到，继续注册
-    const msg = e?.response?.data?.msg
-    if (msg && msg.includes('禁用')) {
-      ElMessage.warning(msg)
-      return
-    }
-  }
+  } catch (_) { /* 未找到或其他错误，继续尝试注册 */ }
 
   try {
     const res = await memberApi.registerMember({ phone: memberPhone.value })
     member.value = res.data
     ElMessage.success('会员注册成功')
     if (res.data) recalcCheckout()
-  } catch (e) { ElMessage.error('注册失败') }
+  } catch (e) {
+    const msg = e?.response?.data?.msg || '注册失败'
+    ElMessage.error(msg)
+  }
 }
 
 const removeMember = () => {
@@ -637,17 +629,21 @@ const handleSettle = async () => {
   const cashierId = user.userId
   if (!cashierId) return ElMessage.warning('无法获取收银员信息')
 
-  // 最终实付金额
+  // 最终实付金额：优先会员结算价，其次手动抹零额，兜底订单合计
   const finalPay = (() => {
     if (memberCheckout.value?.finalPayAmount != null) {
       const v = Number(memberCheckout.value.finalPayAmount)
       if (!isNaN(v) && v >= 0) return v
     }
     const f = Number(finalAmount.value)
-    return isNaN(f) ? 0 : Math.max(0, f)
+    if (!isNaN(f) && f > 0) return f
+    // 兜底：会员信息加载失败且未手动输入抹零时，按订单原价结算
+    return Math.max(0, Number(total.value) || 0)
   })()
 
   try {
+    // 生成唯一请求 ID，后端 Redis SETNX 防重放
+    const requestId = crypto.randomUUID()
     const settleRes = await settleOrder(
       currentOrder.value.id,
       cashierId,
@@ -657,6 +653,7 @@ const handleSettle = async () => {
       member.value?.id || null,
       useMemberDiscount.value || false,
       memberCheckout.value?.redeemPoints || 0,
+      requestId,
     )
     if (settleRes && settleRes.code !== 200) {
       ElMessage.error(settleRes.msg || '结账失败')
@@ -667,13 +664,13 @@ const handleSettle = async () => {
       ElMessage.info(`会员获得 ${memberCheckout.value.expectedPoints} 积分`)
     }
     if (selectedTableId.value) {
-      await updateTableStatus(selectedTableId.value, 'free').catch(() => {})
+      await updateTableStatus(selectedTableId.value, 'free').catch(e => console.error('更新桌台状态失败:', e))
     }
     currentOrder.value = null
     orderItems.value = []
     discountAmount.value = 0
     removeMember()
-    await loadData().catch(() => {})
+    await loadData().catch(e => console.error('加载数据失败:', e))
   } catch (e) {
     console.error('结账异常:', e)
     const msg = e?.response?.data?.msg || e?.message || '结账失败，请重试'
@@ -702,16 +699,12 @@ const handleCancel = async () => {
   try {
     await cancelOrder(currentOrder.value.id)
     ElMessage.success('退单成功')
-    // 乐观更新本地桌台状态
-    if (selectedTableId.value) {
-      const t = tables.value.find((tbl) => tbl.id === selectedTableId.value)
-      if (t) t.status = 'free'
-    }
     currentOrder.value = null
     orderItems.value = []
     discountAmount.value = 0
     removeMember()
-    await loadData().catch(() => {})
+    // 从服务端刷新桌台状态，避免乐观更新与服务端不一致
+    await loadData().catch(e => console.error('加载数据失败:', e))
   } catch (e) {
     console.error('退单失败:', e)
     const msg = e?.response?.data?.msg || e?.message || '退单失败，请重试'
@@ -747,7 +740,7 @@ const handleCancel = async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 .store-select {
@@ -774,7 +767,7 @@ const handleCancel = async () => {
 .dish-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 10px;
+  gap: 12px;
   margin-top: 8px;
 }
 .dish-card {
@@ -783,9 +776,12 @@ const handleCancel = async () => {
   border-radius: 8px;
   padding: 8px;
   text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .dish-card:hover {
   border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.12);
 }
 .dish-img {
   height: 80px;

@@ -57,16 +57,22 @@
       <!-- 图表区域 -->
       <el-row :gutter="20" style="margin-top: 20px;">
         <el-col :xs="24" :sm="12">
-          <div id="chart-day-trend" style="width: 100%; height: 350px;"></div>
+          <div class="chart-card">
+            <div id="chart-day-trend" style="width: 100%; height: 350px;"></div>
+          </div>
         </el-col>
         <el-col :xs="24" :sm="12">
-          <div id="chart-payment-type" style="width: 100%; height: 350px;"></div>
+          <div class="chart-card">
+            <div id="chart-payment-type" style="width: 100%; height: 350px;"></div>
+          </div>
         </el-col>
       </el-row>
 
       <el-row v-if="isAdmin" :gutter="20" style="margin-top: 20px;">
         <el-col :span="24">
-          <div id="chart-store-turnover" style="width: 100%; height: 350px;"></div>
+          <div class="chart-card">
+            <div id="chart-store-turnover" style="width: 100%; height: 350px;"></div>
+          </div>
         </el-col>
       </el-row>
     </el-card>
@@ -256,15 +262,21 @@ onMounted(async () => {
   justify-content: center;
 }
 .stat-card.total {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #409eff 0%, #2563eb 100%);
 }
 .stat-card.today {
-  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-  color: #333;
+  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
 }
 .stat-card.month {
-  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-  color: #333;
+  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+}
+/* 图表卡片容器，继承全局 white-card 规范 */
+.chart-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  margin-bottom: 16px;
 }
 .label {
   font-size: 14px;

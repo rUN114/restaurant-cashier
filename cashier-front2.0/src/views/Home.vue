@@ -160,7 +160,7 @@ onMounted(async () => {
     try {
       const res = await getTodayTurnover(paramStoreId)
       todaySales.value = res.data || 0
-    } catch (e) { /* ignore */ }
+    } catch (e) { console.error('加载今日营业额失败:', e) }
   }
 
   if (canManageInventory.value && user.storeId) {
@@ -180,14 +180,15 @@ onMounted(async () => {
     if (allChangelogs.value.length > 0) {
       latestVersion.value = allChangelogs.value[0].version
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) { console.error('加载更新日志失败:', e) }
 })
 
+// 卡片渐变从主色 #409eff 统一派生，通过明度/饱和度区分层次
 const cards = computed(() => [
-  { title: t('home.todaySales'), value: `¥${Number(todaySales.value).toFixed(2)}`, icon: 'Money', color: '#fff', bg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', image: '/local-images/sales4.jpg' },
-  { title: t('home.currentStore'), value: user.roleCode === 'ADMIN' ? t('home.allStore') : (user.storeId ? `ID: ${user.storeId}` : t('home.noStore')), icon: 'Shop', color: '#fff', bg: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', image: '/local-images/store.png' },
-  { title: t('home.role'), value: t(`role.${roleLabelKey()}`), icon: 'UserFilled', color: '#fff', bg: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', image: '/local-images/role.jpg' },
-  { title: t('home.version'), value: latestVersion.value, icon: 'Setting', color: '#fff', bg: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', image: '/local-images/system.png' },
+  { title: t('home.todaySales'), value: `¥${Number(todaySales.value).toFixed(2)}`, icon: 'Money', color: '#fff', bg: 'linear-gradient(135deg, #409eff 0%, #2563eb 100%)', image: '/local-images/sales4.jpg' },
+  { title: t('home.currentStore'), value: user.roleCode === 'ADMIN' ? t('home.allStore') : (user.storeId ? `ID: ${user.storeId}` : t('home.noStore')), icon: 'Shop', color: '#fff', bg: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)', image: '/local-images/store.png' },
+  { title: t('home.role'), value: t(`role.${roleLabelKey()}`), icon: 'UserFilled', color: '#fff', bg: 'linear-gradient(135deg, #409eff 0%, #66b1ff 100%)', image: '/local-images/role.jpg' },
+  { title: t('home.version'), value: latestVersion.value, icon: 'Setting', color: '#fff', bg: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)', image: '/local-images/system.png' },
 ])
 
 function roleLabelKey() {

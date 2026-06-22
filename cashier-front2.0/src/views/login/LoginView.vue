@@ -126,7 +126,7 @@ onMounted(() => {
       } else {
         localStorage.removeItem('loginRemember')
       }
-    } catch { /* ignore */ }
+    } catch { /* localStorage 解析失败，清除残余数据 */ }
   }
 })
 
@@ -197,19 +197,6 @@ const doLogin = async (captchaPayload = null) => {
   }
 }
 </script>
-
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-html, body, #app {
-  width: 100%;
-  height: 100%;
-  overflow-x: hidden;
-}
-</style>
 
 <style scoped>
 .login-page {
@@ -301,9 +288,9 @@ html, body, #app {
 
 .login-btn {
   width: 100%;
-  background: linear-gradient(to right, #a8edea, #fed6e3);
+  background: linear-gradient(135deg, #409eff, #66b1ff);
   border: none;
-  color: #333;
+  color: #fff;
   font-weight: 500;
   transition: all 0.3s;
 }

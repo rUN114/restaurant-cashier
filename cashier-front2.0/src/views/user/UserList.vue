@@ -182,7 +182,7 @@ const handleEdit = async (row) => {
       status: u.status
     }
     dialogVisible.value = true
-  } catch (_) { /* ignore */ }
+  } catch (_) { /* 角色/门店数据加载失败，仍可编辑基本信息 */ }
 }
 
 const submitForm = async () => {
@@ -204,7 +204,7 @@ const submitForm = async () => {
     ElMessage.success(t('action.createSuccess'))
     dialogVisible.value = false
     load()
-  } catch (_) { /* ignore */ }
+  } catch (_) { /* 保存失败已由请求拦截器处理 */ }
 }
 
 const handleDelete = async (id) => {

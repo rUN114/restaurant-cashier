@@ -19,9 +19,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Tag(name = "会员管理", description = "会员CRUD、积分调整、查询")
 @RestController
@@ -40,13 +42,7 @@ public class MemberController {
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     public Result<List<Member>> list() {
         List<Member> list = memberService.list();
-        // 填充等级名称
-        for (Member m : list) {
-            if (m.getLevelId() != null) {
-                MemberLevel level = memberLevelService.getById(m.getLevelId());
-                m.setLevel(level);
-            }
-        }
+        fillLevels(list);
         return Result.success(list);
     }
 
@@ -64,11 +60,7 @@ public class MemberController {
         wrapper.orderByDesc(Member::getCreatedAt);
         Page<Member> page = new Page<>(pageNum, pageSize);
         memberService.page(page, wrapper);
-        for (Member m : page.getRecords()) {
-            if (m.getLevelId() != null) {
-                m.setLevel(memberLevelService.getById(m.getLevelId()));
-            }
-        }
+        fillLevels(page.getRecords());
         return PageResult.success(page.getRecords(), page.getTotal(),
                 page.getPages(), (int) page.getCurrent(), (int) page.getSize());
     }
@@ -91,8 +83,8 @@ public class MemberController {
     public Result<Void> update(@PathVariable Long id, @RequestBody MemberDTO dto) {
         Member member = memberService.getById(id);
         if (member == null) return Result.error("会员不存在");
-        BeanUtils.copyProperties(dto, member, "id", "phone", "totalPoints",
-                "availablePoints", "totalConsumption", "totalOrders");
+        BeanUtils.copyProperties(dto, member, "id", "phone", "status", "levelId",
+                "totalPoints", "availablePoints", "totalConsumption", "totalOrders");
         member.setId(id);
         memberService.updateById(member);
         return Result.success();
@@ -101,6 +93,7 @@ public class MemberController {
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyAuthority('admin_global')")
     public Result<Void> toggleStatus(@PathVariable Long id, @RequestParam Integer status) {
+        if (status != 0 && status != 1) return Result.error("状态值无效，仅支持 0(禁用) 或 1(启用)");
         Member member = memberService.getById(id);
         if (member == null) return Result.error("会员不存在");
         member.setStatus(status);
@@ -122,8 +115,8 @@ public class MemberController {
     @Operation(summary = "收银台-手机号搜索会员")
     public Result<Member> searchByPhone(@RequestParam String phone) {
         Member member = memberService.findByPhone(phone);
-        if (member == null) return Result.error("未找到该手机号的会员");
-        if (member.getStatus() != 1) return Result.error("该会员已被禁用");
+        // 统一返回消息，防止通过不同错误信息枚举手机号
+        if (member == null || member.getStatus() != 1) return Result.error("未找到该手机号的会员");
         if (member.getLevelId() != null) {
             member.setLevel(memberLevelService.getById(member.getLevelId()));
         }
@@ -146,6 +139,7 @@ public class MemberController {
 
     // ==================== 积分调整 ====================
 
+    @Transactional(rollbackFor = Exception.class)
     @PostMapping("/points/adjust")
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     public Result<Void> adjustPoints(@RequestBody MemberPointAdjustDTO dto) {
@@ -157,13 +151,15 @@ public class MemberController {
         int after = before + change;
         if (after < 0) return Result.error("积分不足，扣减后不能为负");
 
+        // 直接更新积分（FOR UPDATE 锁已持有），避免调用 addPoints/deductPoints
+        // 造成双重 pointLogService.log() 记账
+        Member update = new Member();
+        update.setId(dto.getMemberId());
+        update.setAvailablePoints(after);
         if (change > 0) {
-            memberService.addPoints(dto.getMemberId(), change);
-        } else if (change < 0) {
-            if (!memberService.deductPoints(dto.getMemberId(), -change)) {
-                return Result.error("积分扣减失败，请检查可用积分");
-            }
+            update.setTotalPoints(member.getTotalPoints() + change);
         }
+        memberService.updateById(update);
 
         int logType = change > 0 ? 4 : 5;
         pointLogService.log(dto.getMemberId(), null, logType,
@@ -187,5 +183,22 @@ public class MemberController {
         pointLogService.page(page, wrapper);
         return PageResult.success(page.getRecords(), page.getTotal(),
                 page.getPages(), (int) page.getCurrent(), (int) page.getSize());
+    }
+
+    /** 批量填充会员等级：一次 listByIds 替代逐条 getById，消除 N+1 */
+    private void fillLevels(List<Member> members) {
+        Set<Long> levelIds = members.stream()
+                .map(Member::getLevelId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (levelIds.isEmpty()) return;
+
+        Map<Long, MemberLevel> levelMap = memberLevelService.listByIds(levelIds).stream()
+                .collect(Collectors.toMap(MemberLevel::getId, l -> l));
+        for (Member m : members) {
+            if (m.getLevelId() != null) {
+                m.setLevel(levelMap.get(m.getLevelId()));
+            }
+        }
     }
 }
