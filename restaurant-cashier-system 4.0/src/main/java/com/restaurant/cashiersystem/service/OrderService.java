@@ -24,6 +24,11 @@ public interface OrderService extends IService<Order> {
      */
     void cancelOrder(Long orderId, Long operatorId);
 
+    /**
+     * 反结账：将已结算订单回退为进行中，回滚库存消耗和会员积分
+     */
+    void reverseSettlement(Long orderId, Long operatorId);
+
     BigDecimal getStoreTurnover(Long storeId);
 
     BigDecimal getTodayTurnover(Long storeId);

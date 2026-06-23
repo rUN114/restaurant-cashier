@@ -2,7 +2,10 @@ package com.restaurant.cashiersystem.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.restaurant.cashiersystem.entity.MaterialConsumption;
+import com.restaurant.cashiersystem.entity.MaterialInventory;
 import com.restaurant.cashiersystem.entity.Member;
+import com.restaurant.cashiersystem.entity.MemberPointLog;
 import com.restaurant.cashiersystem.entity.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +14,8 @@ import com.restaurant.cashiersystem.entity.Order;
 import com.restaurant.cashiersystem.entity.OrderItem;
 import com.restaurant.cashiersystem.mapper.OrderMapper;
 import com.restaurant.cashiersystem.service.MaterialConsumptionService;
+import com.restaurant.cashiersystem.service.MaterialInventoryService;
+import com.restaurant.cashiersystem.service.MemberPointLogService;
 import com.restaurant.cashiersystem.service.OperationLogService;
 import com.restaurant.cashiersystem.service.OrderItemService;
 import com.restaurant.cashiersystem.service.OrderService;
@@ -54,6 +59,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Autowired
     private TableService tableService;
+
+    @Autowired
+    private MaterialInventoryService materialInventoryService;
+
+    @Autowired
+    private MemberPointLogService memberPointLogService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -184,6 +195,84 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             operationLogService.save(logEntry);
         } catch (Exception e) {
             log.warn("退单操作日志记录失败", e);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reverseSettlement(Long orderId, Long operatorId) {
+        Order order = getById(orderId);
+        if (order == null) throw new RuntimeException("订单不存在");
+        if (!"settled".equals(order.getStatus())) throw new RuntimeException("仅已结算订单可反结账");
+
+        // 1. 回滚库存：查询该订单的原料消耗记录，加回库存
+        LambdaQueryWrapper<MaterialConsumption> cWrapper = new LambdaQueryWrapper<>();
+        cWrapper.eq(MaterialConsumption::getOrderId, orderId);
+        List<MaterialConsumption> consumptions = materialConsumptionService.list(cWrapper);
+
+        for (MaterialConsumption mc : consumptions) {
+            MaterialInventory inv = materialInventoryService.lambdaQuery()
+                    .eq(MaterialInventory::getStoreId, mc.getStoreId())
+                    .eq(MaterialInventory::getMaterialId, mc.getMaterialId())
+                    .last("FOR UPDATE")
+                    .one();
+            if (inv != null) {
+                inv.setCurrentStock(inv.getCurrentStock().add(mc.getUsedQuantity()));
+                materialInventoryService.updateById(inv);
+            }
+        }
+
+        // 2. 物理删除消耗记录
+        if (!consumptions.isEmpty()) {
+            materialConsumptionService.remove(cWrapper);
+        }
+
+        // 3. 回滚会员积分：从积分日志反查该订单涉及的会员和变动
+        BigDecimal refundAmount = order.getFinalAmount() != null ? order.getFinalAmount() : BigDecimal.ZERO;
+        try {
+            LambdaQueryWrapper<MemberPointLog> logWrapper = new LambdaQueryWrapper<>();
+            logWrapper.eq(MemberPointLog::getOrderId, orderId);
+            List<MemberPointLog> logs = memberPointLogService.list(logWrapper);
+            if (!logs.isEmpty()) {
+                Long memberId = logs.get(0).getMemberId();
+                int totalPointsChange = logs.stream().mapToInt(MemberPointLog::getChangePoints).sum();
+                // 正数=当时加了积分(现在扣回)，负数=当时扣了积分(现在加回)
+                if (totalPointsChange != 0) {
+                    if (totalPointsChange > 0) {
+                        memberService.deductPoints(memberId, totalPointsChange);
+                    } else {
+                        memberService.addPoints(memberId, -totalPointsChange);
+                    }
+                }
+                // 回退累计消费
+                memberService.refundRollback(memberId, refundAmount,
+                        -totalPointsChange);
+            }
+        } catch (Exception e) {
+            log.warn("反结账-会员积分回滚失败: orderId={}", orderId, e);
+        }
+
+        // 4. 订单状态回退
+        order.setStatus("in_progress");
+        order.setPaymentMethod(null);
+        order.setSettledAt(null);
+        order.setSettledBy(null);
+        updateById(order);
+
+        // 5. 操作日志
+        try {
+            OperationLog log = new OperationLog();
+            log.setStoreId(order.getStoreId());
+            log.setOperatorId(operatorId);
+            log.setTargetType("order");
+            log.setTargetId(orderId.toString());
+            log.setAction("reverseSettle");
+            log.setDetail("反结账，订单号：" + (order.getOrderNo() != null ? order.getOrderNo() : orderId)
+                    + "，原实收：" + (order.getFinalAmount() != null ? order.getFinalAmount() : "—"));
+            log.setCreatedAt(LocalDateTime.now());
+            operationLogService.save(log);
+        } catch (Exception e) {
+            log.warn("反结账操作日志记录失败", e);
         }
     }
 

@@ -4,6 +4,7 @@ import com.restaurant.cashiersystem.entity.Store;
 import com.restaurant.cashiersystem.service.StoreService;
 import com.restaurant.cashiersystem.util.JwtUtil;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -106,6 +107,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 } else {
                     SecurityContextHolder.clearContext();
                 }
+            } catch (ExpiredJwtException e) {
+                log.debug("JWT 已过期: {}", e.getMessage());
+                response.setContentType("application/json;charset=UTF-8");
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write(
+                    "{\"code\":401,\"msg\":\"登录已过期，请重新登录\",\"data\":null}"
+                );
+                return;
             } catch (Exception e) {
                 log.debug("JWT 解析失败: {}", e.getMessage());
                 SecurityContextHolder.clearContext();

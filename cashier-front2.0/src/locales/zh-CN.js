@@ -239,7 +239,7 @@ export default {
   lang: {
     switch: '语言',
     zhCN: '简体中文',
-    zhTW: '繁體中文',
+    zhHK: '香港繁體',
     en: 'English',
   },
   pos: {

@@ -10,8 +10,8 @@
         <el-dropdown-item command="zh-CN">
           <span :class="{ active: locale === 'zh-CN' }">🇨🇳 {{ $t('lang.zhCN') }}</span>
         </el-dropdown-item>
-        <el-dropdown-item command="zh-TW">
-          <span :class="{ active: locale === 'zh-TW' }">🇹🇼 {{ $t('lang.zhTW') }}</span>
+        <el-dropdown-item command="zh-HK">
+          <span :class="{ active: locale === 'zh-HK' }">🇭🇰 {{ $t('lang.zhHK') }}</span>
         </el-dropdown-item>
         <el-dropdown-item command="en">
           <span :class="{ active: locale === 'en' }">🇺🇸 {{ $t('lang.en') }}</span>
@@ -31,7 +31,7 @@ const props = defineProps({
 
 const { locale } = useI18n()
 
-const labelMap = { 'zh-CN': '简体中文', 'zh-TW': '繁體中文', en: 'English' }
+const labelMap = { 'zh-CN': '简体中文', 'zh-HK': '香港繁體', en: 'English' }
 const currentLabel = computed(() => labelMap[locale.value] || '简体中文')
 
 const handleSwitch = (lang) => {

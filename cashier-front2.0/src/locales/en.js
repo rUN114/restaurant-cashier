@@ -273,7 +273,7 @@ export default {
   lang: {
     switch: 'Language',
     zhCN: '简体中文',
-    zhTW: '繁體中文',
+    zhHK: '繁體中文 (HK)',
     en: 'English',
   },
 }

@@ -9,6 +9,7 @@ export const settleOrder = (orderId, cashierId, paymentMethod, discountAmount, f
     params: { cashierId, paymentMethod, discountAmount, finalAmount, memberId, useMemberDiscount, redeemPoints, requestId },
   })
 export const cancelOrder = (orderId) => request.put(`/orders/cancel/${orderId}`)
+export const reverseSettleOrder = (orderId) => request.put(`/orders/reverse-settle/${orderId}`)
 export const getOrderById = (id) => request.get(`/orders/${id}`)
 export const getAllOrders = () => request.get('/orders/all')
 export const getOrdersPage = (params) => request.get('/orders/page', { params })

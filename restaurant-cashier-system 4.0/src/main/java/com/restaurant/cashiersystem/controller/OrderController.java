@@ -183,6 +183,20 @@ public class OrderController {
         return Result.success();
     }
 
+    @PutMapping("/reverse-settle/{orderId}")
+    @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
+    public Result<Void> reverseSettle(@PathVariable Long orderId,
+                                       HttpServletRequest request) {
+        Long operatorId = getUserIdFromToken(request);
+        if (operatorId == null) return Result.error("无法获取操作员信息");
+        try {
+            orderService.reverseSettlement(orderId, operatorId);
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @GetMapping("/{id}")
     public Result<Order> getOrderById(@PathVariable Long id,
                                       HttpServletRequest request) {

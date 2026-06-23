@@ -15,9 +15,14 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="180" />
-        <el-table-column :label="$t('common.operate')" width="100">
+        <el-table-column :label="$t('common.operate')" width="180">
           <template #default="{ row }">
             <el-button link type="primary" @click="showDetail(row.id)">详情</el-button>
+            <el-button
+              v-if="row.status === 'settled' && ['ADMIN','STORE_ADMIN'].includes(roleCode)"
+              link type="warning"
+              @click="handleReverseSettle(row.id)"
+            >反结账</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -73,8 +78,9 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
-import { getOrderById, getOrderItemsByOrderId, getOrdersPage } from '@/api'
+import { getOrderById, getOrderItemsByOrderId, getOrdersPage, reverseSettleOrder } from '@/api'
 import { usePagination } from '@/composables/usePagination'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const user = useUserStore()
 const storeId = computed(() => user.storeId)
@@ -117,6 +123,23 @@ const showDetail = async (orderId) => {
     detailVisible.value = true
   } catch (_) {
     // 忽略
+  }
+}
+
+const handleReverseSettle = async (orderId) => {
+  try {
+    await ElMessageBox.confirm('反结账将回退订单状态为"进行中"，并回滚库存消耗。确定继续？', '反结账确认', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch { return }
+  try {
+    await reverseSettleOrder(orderId)
+    ElMessage.success('反结账成功，订单已回退为进行中')
+    load()
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.msg || '反结账失败')
   }
 }
 
