@@ -152,13 +152,16 @@ public class OrderController {
             @RequestParam(required = false) String requestId) {
         // ===== 幂等校验：防止网络重放重复结账 =====
         if (requestId != null && !requestId.isBlank()) {
-            String idempotentKey = IDEMPOTENT_ORDER_PREFIX + requestId;
-            // SETNX 返回 true = 首次设置成功，返回 false = key 已存在（重复请求）
-            Boolean isFirst = stringRedisTemplate.opsForValue()
-                    .setIfAbsent(idempotentKey, orderId.toString(), IDEMPOTENT_TTL);
-            if (Boolean.FALSE.equals(isFirst)) {
-                log.warn("重复的结账请求已被拦截: orderId={}, requestId={}", orderId, requestId);
-                return Result.success(); // 幂等返回成功，不重复执行业务
+            try {
+                String idempotentKey = IDEMPOTENT_ORDER_PREFIX + requestId;
+                Boolean isFirst = stringRedisTemplate.opsForValue()
+                        .setIfAbsent(idempotentKey, orderId.toString(), IDEMPOTENT_TTL);
+                if (Boolean.FALSE.equals(isFirst)) {
+                    log.warn("重复的结账请求已被拦截: orderId={}, requestId={}", orderId, requestId);
+                    return Result.success();
+                }
+            } catch (Exception e) {
+                log.warn("Redis 不可用，跳过幂等校验: orderId={}", orderId, e);
             }
         }
         // ===== 幂等校验结束 =====

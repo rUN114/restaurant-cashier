@@ -20,6 +20,7 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 
 import java.time.Duration;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Configuration
 @EnableCaching
@@ -68,28 +69,35 @@ public class RedisConfig {
 
     /**
      * 自定义 CacheManager：默认 TTL 30 分钟，支持按缓存名设置不同 TTL。
-     * 使用 cachePrefix 隔离新旧缓存，避免旧格式 LinkedHashMap 数据导致 ClassCastException。
+     * 每个缓存 TTL 附加随机偏移量（±10%），防止大量 key 同时过期引发缓存雪崩。
      */
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(30))
-                .prefixCacheNameWith("v2:")  // ← 隔离旧缓存，旧 key 自然过期
+                .entryTtl(jitter(Duration.ofMinutes(30)))
+                .prefixCacheNameWith("v2:")
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(createJsonSerializer()))
-                .disableCachingNullValues();
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(createJsonSerializer()));
 
         return RedisCacheManager.builder(factory)
                 .cacheDefaults(defaultConfig)
                 .withCacheConfiguration("stores",
-                        defaultConfig.entryTtl(Duration.ofHours(1)))
+                        defaultConfig.entryTtl(jitter(Duration.ofHours(1))))
                 .withCacheConfiguration("roles",
-                        defaultConfig.entryTtl(Duration.ofHours(2)))
+                        defaultConfig.entryTtl(jitter(Duration.ofHours(2))))
                 .withCacheConfiguration("configs",
-                        defaultConfig.entryTtl(Duration.ofHours(2)))
+                        defaultConfig.entryTtl(jitter(Duration.ofHours(2))))
                 .withCacheConfiguration("dishes",
-                        defaultConfig.entryTtl(Duration.ofMinutes(5)))
+                        defaultConfig.entryTtl(jitter(Duration.ofMinutes(5))))
                 .build();
+    }
+
+    /** TTL 附加 ±10% 随机偏移，防缓存雪崩 */
+    private static Duration jitter(Duration base) {
+        long ms = base.toMillis();
+        long delta = ms / 10; // 10%
+        long jittered = ms + ThreadLocalRandom.current().nextLong(-delta, delta + 1);
+        return Duration.ofMillis(Math.max(jittered, 1));
     }
 
     /**

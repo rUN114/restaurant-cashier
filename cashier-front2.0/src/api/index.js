@@ -25,6 +25,7 @@ export {
   createOrder,
   settleOrder,
   cancelOrder,
+  reverseSettleOrder,
   getOrderById,
   getAllOrders,
   getOrdersPage,

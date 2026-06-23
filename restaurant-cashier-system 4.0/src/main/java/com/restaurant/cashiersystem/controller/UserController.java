@@ -330,12 +330,16 @@ public class UserController {
      * JwtAuthenticationFilter 发现 token 签发时间早于此时间戳则拒绝。
      */
     private void revokeUserToken(Long userId) {
-        stringRedisTemplate.opsForValue().set(
-                TOKEN_REVOKED_PREFIX + userId,
-                String.valueOf(System.currentTimeMillis()),
-                REVOKE_TTL
-        );
-        log.info("已撤销用户 {} 的所有 token", userId);
+        try {
+            stringRedisTemplate.opsForValue().set(
+                    TOKEN_REVOKED_PREFIX + userId,
+                    String.valueOf(System.currentTimeMillis()),
+                    REVOKE_TTL
+            );
+            log.info("已撤销用户 {} 的所有 token", userId);
+        } catch (Exception e) {
+            log.warn("Redis 不可用，跳过 token 撤销: userId={}", userId, e);
+        }
     }
 
     private String getRoleFromToken(HttpServletRequest request) {
