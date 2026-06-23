@@ -13,6 +13,7 @@ import com.restaurant.cashiersystem.entity.OperationLog;
 import com.restaurant.cashiersystem.entity.Order;
 import com.restaurant.cashiersystem.entity.OrderItem;
 import com.restaurant.cashiersystem.mapper.OrderMapper;
+import com.restaurant.cashiersystem.service.AsyncLogService;
 import com.restaurant.cashiersystem.service.MaterialConsumptionService;
 import com.restaurant.cashiersystem.service.MaterialInventoryService;
 import com.restaurant.cashiersystem.service.MemberPointLogService;
@@ -65,6 +66,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Autowired
     private MemberPointLogService memberPointLogService;
+
+    @Autowired
+    private AsyncLogService asyncLogService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -139,22 +143,18 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         // 扣减原材料库存（同一事务，库存不足则订单结账也回滚）
         materialConsumptionService.consumeOrderMaterials(orderId);
 
-        // ========== 记录操作日志 ==========
-        try {
-            OperationLog log = new OperationLog();
-            log.setStoreId(order.getStoreId());
-            log.setOperatorId(cashierId);
-            log.setTargetType("order");
-            log.setTargetId(orderId.toString());
-            log.setAction("settle");
-            log.setDetail(String.format("结账成功，支付方式：%s，折扣：%s，实收：%s，会员：%s",
-                    paymentMethod, effectiveDiscount, actualFinal,
-                    memberId != null ? "是" : "否"));
-            log.setCreatedAt(LocalDateTime.now());
-            operationLogService.save(log);
-        } catch (Exception e) {
-            // 日志记录失败不影响主业务
-        }
+        // 异步记录操作日志（不阻塞结账响应）
+        OperationLog settleLog = new OperationLog();
+        settleLog.setStoreId(order.getStoreId());
+        settleLog.setOperatorId(cashierId);
+        settleLog.setTargetType("order");
+        settleLog.setTargetId(orderId.toString());
+        settleLog.setAction("settle");
+        settleLog.setDetail(String.format("结账成功，支付方式：%s，折扣：%s，实收：%s，会员：%s",
+                paymentMethod, effectiveDiscount, actualFinal,
+                memberId != null ? "是" : "否"));
+        settleLog.setCreatedAt(LocalDateTime.now());
+        asyncLogService.saveOperationLog(settleLog);
     }
 
     @Override
@@ -181,21 +181,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             }
         }
 
-        // 3. 记录操作日志（异常不影响退单主流程）
-        try {
-            OperationLog logEntry = new OperationLog();
-            logEntry.setStoreId(order.getStoreId());
-            logEntry.setOperatorId(operatorId);
-            logEntry.setTargetType("order");
-            logEntry.setTargetId(orderId.toString());
-            logEntry.setAction("cancel");
-            logEntry.setDetail("退单，桌号：" +
-                    (order.getTableNumber() != null ? order.getTableNumber() : "无"));
-            logEntry.setCreatedAt(LocalDateTime.now());
-            operationLogService.save(logEntry);
-        } catch (Exception e) {
-            log.warn("退单操作日志记录失败", e);
-        }
+        // 3. 异步记录操作日志
+        OperationLog cancelLog = new OperationLog();
+        cancelLog.setStoreId(order.getStoreId());
+        cancelLog.setOperatorId(operatorId);
+        cancelLog.setTargetType("order");
+        cancelLog.setTargetId(orderId.toString());
+        cancelLog.setAction("cancel");
+        cancelLog.setDetail("退单，桌号：" +
+                (order.getTableNumber() != null ? order.getTableNumber() : "无"));
+        cancelLog.setCreatedAt(LocalDateTime.now());
+        asyncLogService.saveOperationLog(cancelLog);
     }
 
     @Override
@@ -259,21 +255,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setSettledBy(null);
         updateById(order);
 
-        // 5. 操作日志
-        try {
-            OperationLog log = new OperationLog();
-            log.setStoreId(order.getStoreId());
-            log.setOperatorId(operatorId);
-            log.setTargetType("order");
-            log.setTargetId(orderId.toString());
-            log.setAction("reverseSettle");
-            log.setDetail("反结账，订单号：" + (order.getOrderNo() != null ? order.getOrderNo() : orderId)
-                    + "，原实收：" + (order.getFinalAmount() != null ? order.getFinalAmount() : "—"));
-            log.setCreatedAt(LocalDateTime.now());
-            operationLogService.save(log);
-        } catch (Exception e) {
-            log.warn("反结账操作日志记录失败", e);
-        }
+        // 5. 异步记录操作日志
+        OperationLog reverseLog = new OperationLog();
+        reverseLog.setStoreId(order.getStoreId());
+        reverseLog.setOperatorId(operatorId);
+        reverseLog.setTargetType("order");
+        reverseLog.setTargetId(orderId.toString());
+        reverseLog.setAction("reverseSettle");
+        reverseLog.setDetail("反结账，订单号：" + (order.getOrderNo() != null ? order.getOrderNo() : orderId)
+                + "，原实收：" + (refundAmount));
+        reverseLog.setCreatedAt(LocalDateTime.now());
+        asyncLogService.saveOperationLog(reverseLog);
     }
 
     @Override

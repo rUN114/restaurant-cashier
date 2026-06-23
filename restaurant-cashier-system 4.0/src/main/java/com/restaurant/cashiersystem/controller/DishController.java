@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,6 +50,7 @@ public class DishController {
     /**
      * 根据门店ID查询菜品列表
      */
+    @Cacheable(value = "dishes", key = "#storeId")
     @GetMapping("/store/{storeId}")
     public Result<List<Dish>> getDishesByStore(@PathVariable Long storeId) {
         List<Dish> list = dishService.getDishesByStore(storeId);
@@ -57,6 +60,7 @@ public class DishController {
     /**
      * 根据门店ID查询【可售状态】的菜品
      */
+    @Cacheable(value = "dishes", key = "'available_' + #storeId")
     @GetMapping("/available/{storeId}")
     public Result<List<Dish>> getAvailableDishes(@PathVariable Long storeId) {
         List<Dish> list = dishService.getAvailableDishes(storeId);
@@ -66,6 +70,7 @@ public class DishController {
     /**
      * 新增菜品（记录操作日志）
      */
+    @CacheEvict(value = "dishes", allEntries = true)
     @PostMapping
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     public Result<Long> createDish(@RequestBody Dish dish) {
@@ -90,6 +95,7 @@ public class DishController {
     /**
      * 修改菜品信息（记录操作日志）
      */
+    @CacheEvict(value = "dishes", allEntries = true)
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     public Result<Void> updateDish(@PathVariable Long id, @RequestBody Dish dish) {
@@ -116,6 +122,7 @@ public class DishController {
     /**
      * 逻辑删除菜品（记录操作日志）
      */
+    @CacheEvict(value = "dishes", allEntries = true)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     public Result<Void> deleteDish(@PathVariable Long id) {

@@ -87,6 +87,8 @@ public class RedisConfig {
                         defaultConfig.entryTtl(Duration.ofHours(2)))
                 .withCacheConfiguration("configs",
                         defaultConfig.entryTtl(Duration.ofHours(2)))
+                .withCacheConfiguration("dishes",
+                        defaultConfig.entryTtl(Duration.ofMinutes(5)))
                 .build();
     }
 
