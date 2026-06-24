@@ -149,6 +149,7 @@ public class UserController {
     public Result<Void> deleteUser(@PathVariable Long id) {
         revokeUserToken(id);
         userService.removeById(id);
+        log.info("用户已删除: id={}", id);
         return Result.success();
     }
 

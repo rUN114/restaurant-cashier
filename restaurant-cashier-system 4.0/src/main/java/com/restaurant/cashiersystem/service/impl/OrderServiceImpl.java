@@ -155,6 +155,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 memberId != null ? "是" : "否"));
         settleLog.setCreatedAt(LocalDateTime.now());
         asyncLogService.saveOperationLog(settleLog);
+        log.info("订单结账成功: orderId={}, orderNo={}, 实收={}, 支付={}, 会员={}",
+                orderId, order.getOrderNo(), actualFinal, paymentMethod,
+                memberId != null ? memberId : "无");
     }
 
     @Override
@@ -192,6 +195,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 (order.getTableNumber() != null ? order.getTableNumber() : "无"));
         cancelLog.setCreatedAt(LocalDateTime.now());
         asyncLogService.saveOperationLog(cancelLog);
+        log.info("订单退单: orderId={}, orderNo={}, 桌号={}, 操作人={}",
+                orderId, order.getOrderNo(), order.getTableNumber(), operatorId);
     }
 
     @Override
@@ -266,6 +271,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 + "，原实收：" + (refundAmount));
         reverseLog.setCreatedAt(LocalDateTime.now());
         asyncLogService.saveOperationLog(reverseLog);
+        log.info("反结账完成: orderId={}, orderNo={}, 原实收={}, 操作人={}",
+                orderId, order.getOrderNo(), refundAmount, operatorId);
     }
 
     @Override
