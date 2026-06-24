@@ -14,10 +14,10 @@
             style="width: 160px"
           />
           <el-select
-            v-if="isAdmin"
+            v-if="isAdmin || roleCode === 'STORE_ADMIN'"
             v-model="selectedStoreId"
             :placeholder="$t('common.pleaseSelect')"
-            clearable
+            :disabled="roleCode === 'STORE_ADMIN'"
             @change="loadAll"
             style="width: 160px"
           >
@@ -119,6 +119,7 @@ import { ElMessage } from 'element-plus'
 
 const user = useUserStore()
 const isAdmin = computed(() => user.roleCode === 'ADMIN')
+const roleCode = computed(() => user.roleCode)
 const storeId = computed(() => user.storeId)
 
 const { getEcharts } = useEcharts()
@@ -144,10 +145,13 @@ let chartStoreTurnover = null
 
 // 加载门店
 const loadStores = async () => {
-  if (!isAdmin.value) return
   try {
     const res = await getAllStores()
     storeList.value = res.data || []
+    // 店长自动选中自己门店
+    if (roleCode.value === 'STORE_ADMIN') {
+      selectedStoreId.value = storeId.value
+    }
   } catch (e) {}
 }
 
