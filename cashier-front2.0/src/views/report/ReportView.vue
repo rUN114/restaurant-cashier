@@ -68,6 +68,33 @@
         </el-col>
       </el-row>
 
+      <!-- 毛利报表 -->
+      <div class="chart-card" style="margin-top:20px">
+        <h4 style="margin-bottom:12px">菜品毛利报表</h4>
+        <el-table :data="grossProfitData" stripe size="small" v-loading="loading">
+          <el-table-column prop="name" label="菜品" />
+          <el-table-column prop="quantity" label="销量" width="80" />
+          <el-table-column label="销售额" width="120">
+            <template #default="{ row }">¥{{ row.sales }}</template>
+          </el-table-column>
+          <el-table-column label="原料成本" width="120">
+            <template #default="{ row }">¥{{ row.cost }}</template>
+          </el-table-column>
+          <el-table-column label="毛利" width="120">
+            <template #default="{ row }">
+              <span :style="{ color: row.profit >= 0 ? '#67c23a' : '#f56c6c' }">¥{{ row.profit }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="毛利率" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.margin >= 50 ? 'success' : row.margin >= 20 ? 'warning' : 'danger'" size="small">
+                {{ row.margin }}%
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
       <el-row v-if="isAdmin" :gutter="20" style="margin-top: 20px;">
         <el-col :span="24">
           <div class="chart-card">
@@ -107,6 +134,8 @@ const storeList = ref([])
 const storeTurnover = ref(0)
 const todayTurnover = ref(0)
 const monthTurnover = ref(0)
+const grossProfitData = ref([])
+const loading = ref(false)
 
 // 图表实例
 let chartDayTrend = null
@@ -150,6 +179,10 @@ const loadAll = async () => {
 
     renderDayTrendChart(dayTrendRes.data || [])
     renderPaymentTypeChart(payTypeRes.data || [])
+
+    // 毛利报表
+    const gpRes = await request.get('/statistics/gross-profit', { params })
+    grossProfitData.value = gpRes.data || []
 
     // 管理员看门店排行
     if (isAdmin.value) {

@@ -118,4 +118,12 @@ public class StatisticsController {
     public Result<List<Map<String, Object>>> storeMonthTurnover(@RequestParam String month) {
         return Result.success(statisticsService.getStoreMonthTurnover(month));
     }
+
+    @GetMapping("/gross-profit")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> grossProfit(
+            @RequestParam String month,
+            @RequestParam(required = false) Long storeId) {
+        return Result.success(statisticsService.getGrossProfit(storeId, month));
+    }
 }

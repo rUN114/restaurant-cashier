@@ -180,4 +180,34 @@ public class StatisticsServiceImpl implements StatisticsService {
         String sql = "SELECT COALESCE(SUM(final_amount),0) FROM orders WHERE status='settled' AND created_by=? AND DATE(settled_at)=CURDATE()";
         return jdbcTemplate.queryForObject(sql, BigDecimal.class, userId);
     }
+
+    @Override
+    public List<Map<String, Object>> getGrossProfit(Long storeId, String month) {
+        Date[] range = monthRange(month);
+        String sql = "SELECT oi.dish_name AS name, " +
+                "SUM(oi.quantity) AS quantity, " +
+                "ROUND(SUM(oi.price * oi.quantity), 2) AS sales, " +
+                "ROUND(COALESCE(SUM(c.cost_per_unit * oi.quantity), 0), 2) AS cost, " +
+                "ROUND(SUM(oi.price * oi.quantity) - COALESCE(SUM(c.cost_per_unit * oi.quantity), 0), 2) AS profit, " +
+                "CASE WHEN SUM(oi.price * oi.quantity) > 0 " +
+                "THEN ROUND((SUM(oi.price * oi.quantity) - COALESCE(SUM(c.cost_per_unit * oi.quantity), 0)) " +
+                "/ SUM(oi.price * oi.quantity) * 100, 1) ELSE 0 END AS margin " +
+                "FROM order_items oi " +
+                "JOIN orders o ON oi.order_id = o.id " +
+                "LEFT JOIN (SELECT dr.dish_id, dr.store_id, " +
+                "SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)) AS cost_per_unit " +
+                "FROM dish_recipes dr " +
+                "LEFT JOIN material_inventory mi ON dr.material_id = mi.material_id " +
+                "AND dr.store_id = mi.store_id GROUP BY dr.dish_id, dr.store_id) c " +
+                "ON oi.dish_id = c.dish_id AND o.store_id = c.store_id " +
+                "WHERE o.status = 'settled' AND o.settled_at >= ? AND o.settled_at < ? ";
+        List<Object> params = new ArrayList<>();
+        params.add(range[0]); params.add(range[1]);
+        if (storeId != null) {
+            sql += "AND o.store_id = ? ";
+            params.add(storeId);
+        }
+        sql += "GROUP BY oi.dish_name ORDER BY profit DESC";
+        return jdbcTemplate.queryForList(sql, params.toArray());
+    }
 }

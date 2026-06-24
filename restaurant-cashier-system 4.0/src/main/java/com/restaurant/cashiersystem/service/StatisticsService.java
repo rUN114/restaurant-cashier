@@ -12,6 +12,9 @@ public interface StatisticsService {
     List<Map<String, Object>> getCategorySales(Long storeId, String month);
     List<Map<String, Object>> getStoreSales(String month);
 
+    /** 毛利报表：每道菜的销售额、原料成本、毛利、毛利率 */
+    List<Map<String, Object>> getGrossProfit(Long storeId, String month);
+
     // ========= 新增营业额统计（必须加上） =========
     BigDecimal getStoreTurnover(Long storeId);
     BigDecimal getTodayTurnover(Long storeId);
