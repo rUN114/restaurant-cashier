@@ -18,7 +18,7 @@ public class AsyncLogService {
     @Autowired
     private OperationLogService operationLogService;
 
-    @Async
+    @Async("logExecutor")
     public void saveOperationLog(OperationLog opLog) {
         try {
             operationLogService.save(opLog);

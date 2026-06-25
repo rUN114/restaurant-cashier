@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -25,9 +26,19 @@ public class GlobalExceptionHandler {
         return Result.error("缺少必要参数: " + e.getParameterName());
     }
 
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleValidation(MethodArgumentNotValidException e) {
+        String msg = e.getBindingResult().getFieldErrors().stream()
+                .map(f -> f.getField() + ": " + f.getDefaultMessage())
+                .reduce((a, b) -> a + "; " + b).orElse("参数校验失败");
+        return Result.error(400, msg);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleIllegalArg(IllegalArgumentException e) {
-        return Result.error(e.getMessage());
+        return Result.error(400, e.getMessage());
     }
 
     @ExceptionHandler(NullPointerException.class)

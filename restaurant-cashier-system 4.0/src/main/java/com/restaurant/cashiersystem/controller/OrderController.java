@@ -26,11 +26,11 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Random;
 
 @Tag(name = "订单管理", description = "开台、结算、查询订单及营业额")
 @RestController
@@ -64,6 +64,10 @@ public class OrderController {
     private static final String IDEMPOTENT_ORDER_PREFIX = "idempotent:order:";
     private static final Duration IDEMPOTENT_TTL = Duration.ofMinutes(5);
 
+    /** 开单桌台锁 key 前缀，同一桌台同时只能开一单 */
+    private static final String TABLE_LOCK_PREFIX = "table:lock:";
+    private static final Duration TABLE_LOCK_TTL = Duration.ofSeconds(3);
+
 
     @GetMapping("/store/{storeId}")
     public Result<List<Order>> getOrdersByStore(@PathVariable Long storeId,
@@ -89,20 +93,34 @@ public class OrderController {
         // ---- 店铺状态校验：停业店铺禁止开单 ----
         storeService.checkStoreActive(order.getStoreId());
 
-        // ---- 桌台校验：同一桌台已有进行中订单，禁止重复开单 ----
+        // ---- 桌台校验：Redis 分布式锁 + DB 双重防并发开单 ----
         if (order.getTableId() != null) {
-            LambdaQueryWrapper<Order> checkWrapper = new LambdaQueryWrapper<>();
-            checkWrapper.eq(Order::getTableId, order.getTableId())
-                        .eq(Order::getStatus, "in_progress");
-            long count = orderService.count(checkWrapper);
-            if (count > 0) {
-                return Result.error("该桌尚有未完成订单，无法重复开单");
+            String lockKey = TABLE_LOCK_PREFIX + order.getTableId();
+            try {
+                Boolean locked = stringRedisTemplate.opsForValue()
+                        .setIfAbsent(lockKey, "1", TABLE_LOCK_TTL);
+                if (Boolean.FALSE.equals(locked)) {
+                    return Result.error("该桌正在开单中，请稍后再试");
+                }
+            } catch (Exception e) {
+                log.warn("Redis 不可用，跳过开单锁: tableId={}", order.getTableId(), e);
+            }
+            try {
+                LambdaQueryWrapper<Order> checkWrapper = new LambdaQueryWrapper<>();
+                checkWrapper.eq(Order::getTableId, order.getTableId())
+                            .eq(Order::getStatus, "in_progress");
+                long count = orderService.count(checkWrapper);
+                if (count > 0) {
+                    return Result.error("该桌尚有未完成订单，无法重复开单");
+                }
+            } finally {
+                try { stringRedisTemplate.delete(lockKey); } catch (Exception ignored) {}
             }
         }
 
-        // 生成订单号
+        // 生成订单号：时间戳(17位) + 安全随机(5位) → 碰撞概率 ≈ 1/100000
         String orderNo = "ORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
-                + String.format("%03d", new Random().nextInt(1000));
+                + String.format("%05d", new SecureRandom().nextInt(100000));
         order.setOrderNo(orderNo);
 
         Table table = null;

@@ -38,7 +38,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("*")); // 允许所有来源（开发环境）
+        // 生产环境应改为具体域名列表，如 Arrays.asList("https://pos.example.com")
+        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "http://127.0.0.1:*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true); // 允许携带 cookie
@@ -60,7 +61,9 @@ public class SecurityConfig {
                         // 放行登录、验证码、会员查询等公开接口
                         .requestMatchers("/api/users/login", "/api/users/register",
                                 "/api/captcha/**", "/api/members/search", "/api/members/register",
-                                "/api/member-checkout/**", "/images/**", "/favicon.ico").permitAll()
+                                "/images/**", "/favicon.ico").permitAll()
+                        // 会员结算需要认证
+                        .requestMatchers("/api/member-checkout/**").authenticated()
                         // 更新日志（列表和最新版本所有用户可查看，新增/编辑/删除仅管理员）
                         .requestMatchers(HttpMethod.GET, "/api/changelogs", "/api/changelogs/latest").permitAll()
                         .requestMatchers("/api/changelogs/**").hasAnyAuthority("admin_global", "admin_store")

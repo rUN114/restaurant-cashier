@@ -6,6 +6,7 @@ import com.restaurant.cashiersystem.service.MemberCheckoutService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -18,6 +19,7 @@ public class MemberCheckoutController {
     @Autowired private MemberCheckoutService checkoutService;
 
     @PostMapping("/calculate")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store','cashier','waiter')")
     @Operation(summary = "计算会员结算信息（折扣、抵现、实付）")
     public Result<MemberCheckoutVO> calculate(
             @RequestParam Long memberId,
