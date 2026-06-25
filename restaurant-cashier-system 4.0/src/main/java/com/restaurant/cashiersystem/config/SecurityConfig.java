@@ -69,6 +69,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/changelogs/**").hasAnyAuthority("admin_global", "admin_store")
                         // 放行 Swagger UI 和 OpenAPI 文档
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                        // 放行 Actuator 健康检查（容器探活用）
+                        .requestMatchers("/actuator/health/**").permitAll()
                         // 其他请求需要认证
                         .anyRequest().authenticated()
                 )

@@ -1,6 +1,22 @@
 server:
   port: 8088
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info           # 只暴露健康检查和基本信息
+  endpoint:
+    health:
+      show-details: when_authorized    # 登录后可见详情（否则只显示 UP/DOWN）
+      probes:
+        enabled: true                  # 启用 /actuator/health/readiness 和 /actuator/health/liveness
+  health:
+    redis:
+      enabled: false                   # 开发环境下 Redis 不可用时不影响健康状态
+    db:
+      enabled: true
+
 spring:
   profiles:
     active: dev
