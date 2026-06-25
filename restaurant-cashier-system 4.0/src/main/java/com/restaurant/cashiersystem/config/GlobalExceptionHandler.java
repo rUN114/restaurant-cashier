@@ -26,8 +26,9 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleIllegalArg(IllegalArgumentException e) {
-        return Result.error(e.getMessage());
+        return Result.error(400, e.getMessage());
     }
 
     @ExceptionHandler(NullPointerException.class)
