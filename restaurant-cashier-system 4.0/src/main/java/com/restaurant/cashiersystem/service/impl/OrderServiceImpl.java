@@ -93,9 +93,10 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     public void settleOrder(Long orderId, Long cashierId, String paymentMethod,
                             BigDecimal discountAmount, BigDecimal finalAmount,
                             Long memberId, boolean useMemberDiscount, int redeemPoints) {
-        Order order = getById(orderId);
+        // 行级锁查询，防并发重复结算
+        Order order = baseMapper.selectByIdForUpdate(orderId);
         if (order == null) {
-            return;
+            throw new RuntimeException("订单不存在");
         }
         // 防止重复结算：Controller 层幂等检查之外的第二道防线
         if (!"in_progress".equals(order.getStatus())) {
@@ -108,23 +109,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // ---- 会员积分处理（异常不影响结账主流程） ----
+        // ---- 会员积分处理（同一事务内，失败则回滚整个结账） ----
         BigDecimal settledAmount = finalAmount != null ? finalAmount : total;
         if (memberId != null && memberId > 0) {
-            try {
-                Member member = memberService.getById(memberId);
-                if (member != null && member.getStatus() == 1) {
-                    if (redeemPoints > 0 && !useMemberDiscount) {
-                        memberService.deductPoints(memberId, redeemPoints);
-                    }
-                    int pointsPerYuan = sysConfigService.getIntValue("member.points_per_yuan", 1);
-                    int earnedPoints = settledAmount.intValue() * pointsPerYuan;
-                    memberService.addConsumptionAndPoints(memberId, settledAmount,
-                            Math.max(0, earnedPoints));
-                }
-            } catch (Exception e) {
-                log.error("会员积分处理失败，结账继续: memberId={}", memberId, e);
+            // memberService 内部已使用 FOR UPDATE，无需外层无锁查询
+            if (redeemPoints > 0 && !useMemberDiscount) {
+                memberService.deductPoints(memberId, redeemPoints);
             }
+            int pointsPerYuan = sysConfigService.getIntValue("member.points_per_yuan", 1);
+            int earnedPoints = settledAmount.intValue() * pointsPerYuan;
+            memberService.addConsumptionAndPoints(memberId, settledAmount,
+                    Math.max(0, earnedPoints));
         }
 
         order.setTotalAmount(total);

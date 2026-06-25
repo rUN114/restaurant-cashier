@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
@@ -117,7 +118,7 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
-    public Result<Long> createUser(@RequestBody UserDTO userDTO, HttpServletRequest request) {
+    public Result<Long> createUser(@RequestBody @Valid UserDTO userDTO, HttpServletRequest request) {
         User user = new User();
         BeanUtils.copyProperties(userDTO, user);
         if (user.getPassword() == null || user.getPassword().isBlank()) {
@@ -140,7 +141,7 @@ public class UserController {
 
     @PutMapping("/{id:\\d+}")
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
-    public Result<Void> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO,
+    public Result<Void> updateUser(@PathVariable Long id, @RequestBody @Valid UserDTO userDTO,
                                    HttpServletRequest request) {
         User user = new User();
         BeanUtils.copyProperties(userDTO, user, "password"); // 密码单独处理
