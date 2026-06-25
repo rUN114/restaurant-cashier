@@ -108,7 +108,7 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useEcharts } from '@/composables/useEcharts'
 import { useUserStore } from '@/stores/user'
 const { t } = useI18n()
@@ -145,6 +145,7 @@ let chartStoreTurnover = null
 
 // 加载门店
 const loadStores = async () => {
+  if (roleCode.value !== 'ADMIN' && roleCode.value !== 'STORE_ADMIN') return
   try {
     const res = await getAllStores()
     storeList.value = res.data || []
@@ -185,8 +186,13 @@ const loadAll = async () => {
     renderPaymentTypeChart(payTypeRes.data || [])
 
     // 毛利报表
-    const gpRes = await request.get('/statistics/gross-profit', { params })
-    grossProfitData.value = gpRes.data || []
+    loading.value = true
+    try {
+      const gpRes = await request.get('/statistics/gross-profit', { params })
+      grossProfitData.value = gpRes.data || []
+    } finally {
+      loading.value = false
+    }
 
     // 管理员看门店排行
     if (isAdmin.value) {
@@ -264,15 +270,21 @@ const renderStoreTurnoverChart = async (data) => {
   })
 }
 
+const onResize = () => {
+  chartDayTrend?.resize()
+  chartPaymentType?.resize()
+  chartStoreTurnover?.resize()
+}
+
 onMounted(async () => {
   await loadStores()
   await loadAll()
 
-  window.addEventListener('resize', () => {
-    chartDayTrend?.resize()
-    chartPaymentType?.resize()
-    chartStoreTurnover?.resize()
-  })
+  window.addEventListener('resize', onResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
 })
 </script>
 

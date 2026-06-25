@@ -22,13 +22,20 @@ public class StatisticsServiceImpl implements StatisticsService {
      * 返回 [startOfMonth, startOfNextMonth)，用于索引友好查询替代 DATE_FORMAT。
      */
     private static Date[] monthRange(String month) {
-        YearMonth ym = YearMonth.parse(month, DateTimeFormatter.ofPattern("yyyy-MM"));
-        LocalDate start = ym.atDay(1);
-        LocalDate end = ym.plusMonths(1).atDay(1);
-        return new Date[] {
-            java.sql.Timestamp.valueOf(start.atStartOfDay()),
-            java.sql.Timestamp.valueOf(end.atStartOfDay())
-        };
+        if (month == null || month.isBlank()) {
+            throw new IllegalArgumentException("月份参数不能为空");
+        }
+        try {
+            YearMonth ym = YearMonth.parse(month, DateTimeFormatter.ofPattern("yyyy-MM"));
+            LocalDate start = ym.atDay(1);
+            LocalDate end = ym.plusMonths(1).atDay(1);
+            return new Date[] {
+                java.sql.Timestamp.valueOf(start.atStartOfDay()),
+                java.sql.Timestamp.valueOf(end.atStartOfDay())
+            };
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalArgumentException("月份格式错误，应为 yyyy-MM: " + month, e);
+        }
     }
 
     // ========= 原有菜品销售统计 =========
@@ -184,6 +191,30 @@ public class StatisticsServiceImpl implements StatisticsService {
     @Override
     public List<Map<String, Object>> getGrossProfit(Long storeId, String month) {
         Date[] range = monthRange(month);
+
+        // 参数按 SQL 文本中 ? 从左到右顺序构建（子查询 → 外层 WHERE）
+        List<Object> params = new ArrayList<>();
+
+        // 构建成本子查询：将 storeId 推入子查询避免全量扫描
+        StringBuilder costSub = new StringBuilder(
+            "(SELECT dr.dish_id, dr.store_id, " +
+            "SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)) AS cost_per_unit " +
+            "FROM dish_recipes dr " +
+            "LEFT JOIN material_inventory mi ON dr.material_id = mi.material_id " +
+            "AND dr.store_id = mi.store_id ");
+        if (storeId != null) {
+            costSub.append("WHERE dr.store_id = ? ");
+            params.add(storeId);   // ← 子查询的 ? 排最前面（SQL 中先出现）
+        }
+        costSub.append("GROUP BY dr.dish_id, dr.store_id) c");
+
+        // 外层 WHERE 的参数紧跟其后
+        params.add(range[0]);
+        params.add(range[1]);
+        if (storeId != null) {
+            params.add(storeId);   // ← 外层 WHERE 的 storeId（与子查询各需一个）
+        }
+
         String sql = "SELECT oi.dish_name AS name, " +
                 "SUM(oi.quantity) AS quantity, " +
                 "ROUND(SUM(oi.price * oi.quantity), 2) AS sales, " +
@@ -194,18 +225,12 @@ public class StatisticsServiceImpl implements StatisticsService {
                 "/ SUM(oi.price * oi.quantity) * 100, 1) ELSE 0 END AS margin " +
                 "FROM order_items oi " +
                 "JOIN orders o ON oi.order_id = o.id " +
-                "LEFT JOIN (SELECT dr.dish_id, dr.store_id, " +
-                "SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)) AS cost_per_unit " +
-                "FROM dish_recipes dr " +
-                "LEFT JOIN material_inventory mi ON dr.material_id = mi.material_id " +
-                "AND dr.store_id = mi.store_id GROUP BY dr.dish_id, dr.store_id) c " +
+                "LEFT JOIN " + costSub.toString() + " " +
                 "ON oi.dish_id = c.dish_id AND o.store_id = c.store_id " +
                 "WHERE o.status = 'settled' AND o.settled_at >= ? AND o.settled_at < ? ";
-        List<Object> params = new ArrayList<>();
-        params.add(range[0]); params.add(range[1]);
+
         if (storeId != null) {
             sql += "AND o.store_id = ? ";
-            params.add(storeId);
         }
         sql += "GROUP BY oi.dish_name ORDER BY profit DESC";
         return jdbcTemplate.queryForList(sql, params.toArray());

@@ -123,7 +123,36 @@ public class StatisticsController {
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     public Result<List<Map<String, Object>>> grossProfit(
             @RequestParam String month,
-            @RequestParam(required = false) Long storeId) {
+            @RequestParam(required = false) Long storeId,
+            HttpServletRequest request) {
+        // 店长只能查看本门店毛利
+        String roleCode = getRoleFromToken(request);
+        if ("admin_store".equals(roleCode)) {
+            storeId = getStoreIdFromToken(request);
+        }
         return Result.success(statisticsService.getGrossProfit(storeId, month));
+    }
+
+    // ===== token 解析工具方法 =====
+    private String getRoleFromToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtUtil.parseToken(authHeader.substring(7));
+                return (String) claims.get("roleCode");
+            } catch (Exception e) { /* ignore */ }
+        }
+        return null;
+    }
+
+    private Long getStoreIdFromToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtUtil.parseToken(authHeader.substring(7));
+                return claims.get("storeId", Long.class);
+            } catch (Exception e) { /* ignore */ }
+        }
+        return null;
     }
 }

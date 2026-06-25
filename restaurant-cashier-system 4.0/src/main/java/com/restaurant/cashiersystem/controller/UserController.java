@@ -122,11 +122,17 @@ public class UserController {
         BeanUtils.copyProperties(userDTO, user);
         if (user.getPassword() == null || user.getPassword().isBlank()) {
             user.setPassword(new BCryptPasswordEncoder().encode("123456"));
+        } else {
+            user.setPassword(new BCryptPasswordEncoder().encode(user.getPassword()));
         }
         // 店长只能创建本店员工，强制覆盖 storeId
         String roleCode = getRoleFromToken(request);
         if ("admin_store".equals(roleCode)) {
-            user.setStoreId(getStoreIdFromToken(request));
+            Long forcedStoreId = getStoreIdFromToken(request);
+            if (forcedStoreId == null) {
+                return Result.error("无法获取门店信息");
+            }
+            user.setStoreId(forcedStoreId);
         }
         userService.save(user);
         return Result.success(user.getId());
@@ -134,13 +140,25 @@ public class UserController {
 
     @PutMapping("/{id:\\d+}")
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
-    public Result<Void> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO) {
+    public Result<Void> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO,
+                                   HttpServletRequest request) {
         User user = new User();
         BeanUtils.copyProperties(userDTO, user, "password"); // 密码单独处理
         user.setId(id);
 
-        if (user.getPassword() != null && !user.getPassword().isBlank()) {
-            user.setPassword(new BCryptPasswordEncoder().encode(user.getPassword()));
+        // 密码更新：检查 DTO 而非 user（因为 password 已被 copyProperties 忽略）
+        if (userDTO.getPassword() != null && !userDTO.getPassword().isBlank()) {
+            user.setPassword(new BCryptPasswordEncoder().encode(userDTO.getPassword()));
+        }
+
+        // 店长只能修改本店员工，强制覆盖 storeId
+        String roleCode = getRoleFromToken(request);
+        if ("admin_store".equals(roleCode)) {
+            Long forcedStoreId = getStoreIdFromToken(request);
+            if (forcedStoreId == null) {
+                return Result.error("无法获取门店信息");
+            }
+            user.setStoreId(forcedStoreId);
         }
 
         // 状态被设为禁用(0)时，撤销该用户所有已签发 token
