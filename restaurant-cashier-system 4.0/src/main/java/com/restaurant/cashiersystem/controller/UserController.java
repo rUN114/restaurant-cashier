@@ -33,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
@@ -119,6 +120,9 @@ public class UserController {
     public Result<Long> createUser(@RequestBody UserDTO userDTO, HttpServletRequest request) {
         User user = new User();
         BeanUtils.copyProperties(userDTO, user);
+        if (user.getPassword() == null || user.getPassword().isBlank()) {
+            user.setPassword(new BCryptPasswordEncoder().encode("123456"));
+        }
         // 店长只能创建本店员工，强制覆盖 storeId
         String roleCode = getRoleFromToken(request);
         if ("admin_store".equals(roleCode)) {
@@ -132,8 +136,12 @@ public class UserController {
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     public Result<Void> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO) {
         User user = new User();
-        BeanUtils.copyProperties(userDTO, user);
+        BeanUtils.copyProperties(userDTO, user, "password"); // 密码单独处理
         user.setId(id);
+
+        if (user.getPassword() != null && !user.getPassword().isBlank()) {
+            user.setPassword(new BCryptPasswordEncoder().encode(user.getPassword()));
+        }
 
         // 状态被设为禁用(0)时，撤销该用户所有已签发 token
         if (userDTO.getStatus() != null && userDTO.getStatus() == 0) {

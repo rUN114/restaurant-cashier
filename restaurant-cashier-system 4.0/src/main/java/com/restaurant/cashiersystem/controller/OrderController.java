@@ -7,6 +7,7 @@ import com.restaurant.cashiersystem.entity.Order;
 import com.restaurant.cashiersystem.entity.Table;
 import com.restaurant.cashiersystem.entity.OperationLog;
 import com.restaurant.cashiersystem.service.OrderService;
+import com.restaurant.cashiersystem.service.AsyncLogService;
 import com.restaurant.cashiersystem.service.StoreService;
 import com.restaurant.cashiersystem.service.TableService;
 import com.restaurant.cashiersystem.service.OperationLogService;
@@ -52,6 +53,9 @@ public class OrderController {
 
     @Autowired
     private StoreService storeService;
+
+    @Autowired
+    private AsyncLogService asyncLogService;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -133,7 +137,7 @@ public class OrderController {
         opLog.setAction("openTable");
         opLog.setDetail("开单，桌号：" + (table != null ? table.getTableNumber() : "无"));
         opLog.setCreatedAt(LocalDateTime.now());
-        operationLogService.save(opLog);
+        asyncLogService.saveOperationLog(opLog);
 
         return Result.success(order.getId());
     }
