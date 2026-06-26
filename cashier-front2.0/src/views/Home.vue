@@ -120,7 +120,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { ArrowDown, WarningFilled } from '@element-plus/icons-vue'
-import { getTodayTurnover, getLowStock, getLatestChangelog, getChangelogs } from '@/api'
+import { getTodayTurnover, getLowStock, getChangelogs, getDashboard } from '@/api'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -147,6 +147,12 @@ const todayStr = computed(() => {
 })
 
 const todaySales = ref(0)
+const todayProfit = ref(0)
+const profitMargin = ref(0)
+const todayOrderCount = ref(0)
+const avgOrderValue = ref(0)
+const yesterdayRevenue = ref(0)
+const revenueChange = ref(null)
 const lowStockItems = ref([])
 const stockActive = ref(['stock'])
 const allChangelogs = ref([])
@@ -161,6 +167,22 @@ onMounted(async () => {
       const res = await getTodayTurnover(paramStoreId)
       todaySales.value = res.data || 0
     } catch (e) { console.error('加载今日营业额失败:', e) }
+
+    // 经营看板（毛利/订单/客单/环比）
+    try {
+      const dash = await getDashboard()
+      if (dash.data) {
+        todayProfit.value = dash.data.todayProfit || 0
+        profitMargin.value = dash.data.profitMargin || 0
+        todayOrderCount.value = dash.data.todayOrderCount || 0
+        avgOrderValue.value = dash.data.avgOrderValue || 0
+        yesterdayRevenue.value = dash.data.yesterdayRevenue || 0
+        if (dash.data.yesterdayRevenue > 0) {
+          revenueChange.value = ((dash.data.todayRevenue - dash.data.yesterdayRevenue)
+            / dash.data.yesterdayRevenue * 100).toFixed(1)
+        }
+      }
+    } catch (e) { console.error('加载经营看板失败:', e) }
   }
 
   if (canManageInventory.value && user.storeId) {
@@ -184,11 +206,16 @@ onMounted(async () => {
 })
 
 // 卡片渐变从主色 #409eff 统一派生，通过明度/饱和度区分层次
+// image 字段指向 /local-images/ 下的自定义图片，可自行设计替换
 const cards = computed(() => [
-  { title: t('home.todaySales'), value: `¥${Number(todaySales.value).toFixed(2)}`, icon: 'Money', color: '#fff', bg: 'linear-gradient(135deg, #409eff 0%, #2563eb 100%)', image: '/local-images/sales4.jpg' },
+  { title: '今日营业额', value: `¥${Number(todaySales.value).toFixed(2)}`, icon: 'Money', color: '#fff', bg: 'linear-gradient(135deg, #409eff 0%, #2563eb 100%)', image: '/local-images/sales4.jpg' },
+  { title: '今日毛利', value: `¥${Number(todayProfit.value).toFixed(2)}  (${profitMargin.value}%)`, icon: 'TrendCharts', color: '#fff', bg: 'linear-gradient(135deg, #67c23a 0%, #3d8b37 100%)', image: '/local-images/profit.jpg' },
+  { title: '订单数', value: `${todayOrderCount.value} 单`, icon: 'Notebook', color: '#fff', bg: 'linear-gradient(135deg, #e6a23c 0%, #cf9236 100%)', image: '/local-images/orders.jpg' },
+  { title: '客单价', value: `¥${Number(avgOrderValue.value).toFixed(2)}`, icon: 'ShoppingCartFull', color: '#fff', bg: 'linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)', image: '/local-images/avg.jpg' },
+  { title: '昨日营业额', value: `¥${Number(yesterdayRevenue.value).toFixed(2)}`, icon: 'Money', color: '#fff', bg: 'linear-gradient(135deg, #607d8b 0%, #455a64 100%)', image: '/local-images/yesterday.jpg' },
+  { title: '环比变化', value: revenueChange.value !== null ? `${revenueChange.value >= 0 ? '+' : ''}${revenueChange.value}%` : '--', icon: 'TrendCharts', color: '#fff', bg: 'linear-gradient(135deg, #00bcd4 0%, #0097a7 100%)', image: '/local-images/compare.jpg' },
   { title: t('home.currentStore'), value: user.roleCode === 'ADMIN' ? t('home.allStore') : (user.storeId ? `ID: ${user.storeId}` : t('home.noStore')), icon: 'Shop', color: '#fff', bg: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)', image: '/local-images/store.png' },
   { title: t('home.role'), value: t(`role.${roleLabelKey()}`), icon: 'UserFilled', color: '#fff', bg: 'linear-gradient(135deg, #409eff 0%, #66b1ff 100%)', image: '/local-images/role.jpg' },
-  { title: t('home.version'), value: latestVersion.value, icon: 'Setting', color: '#fff', bg: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)', image: '/local-images/system.png' },
 ])
 
 function roleLabelKey() {
