@@ -70,6 +70,7 @@ public class StoreController {
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     @CacheEvict(value = "stores", allEntries = true)
     public Result<Long> createStore(@RequestBody Store store) {
+        sanitize(store);
         storeService.save(store);
         return Result.success(store.getId());
     }
@@ -85,9 +86,17 @@ public class StoreController {
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     @CacheEvict(value = "stores", allEntries = true)
     public Result<Void> updateStore(@PathVariable Long id, @RequestBody Store store) {
+        sanitize(store);
         store.setId(id);
         storeService.updateById(store);
         return Result.success();
+    }
+
+    /** 简单 XSS 过滤：去除 HTML 标签 */
+    private void sanitize(Store s) {
+        if (s.getName() != null) s.setName(s.getName().replaceAll("<[^>]*>", ""));
+        if (s.getAddress() != null) s.setAddress(s.getAddress().replaceAll("<[^>]*>", ""));
+        if (s.getPhone() != null) s.setPhone(s.getPhone().replaceAll("<[^>]*>", ""));
     }
 
     /**
