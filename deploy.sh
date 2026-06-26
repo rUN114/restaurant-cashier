@@ -73,6 +73,9 @@ tar -xzf deploy.tar.gz
 rm -rf /var/www/vue-app/*
 cp -r dist/* /var/www/vue-app/
 
+# 数据库迁移（幂等 — 字段已存在则忽略错误）
+mysql restaurant_chain -e "ALTER TABLE orders ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL COMMENT '软删除时间';" 2>/dev/null || true
+
 # 清理解压残留
 rm -rf dist restaurant-cashier-system-0.0.1-SNAPSHOT.jar
 
