@@ -248,14 +248,35 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             log.warn("反结账-会员积分回滚失败: orderId={}", orderId, e);
         }
 
-        // 4. 订单状态回退
+        // 4. 桌台并发检查：该桌若已有其他进行中订单，禁止反结账
+        if (order.getTableId() != null) {
+            long activeCount = lambdaQuery()
+                    .eq(Order::getTableId, order.getTableId())
+                    .eq(Order::getStatus, "in_progress")
+                    .ne(Order::getId, orderId)
+                    .count();
+            if (activeCount > 0) {
+                throw new RuntimeException("该桌台已有新的进行中订单，无法反结账。请先处理当前订单");
+            }
+        }
+
+        // 5. 订单状态回退
         order.setStatus("in_progress");
         order.setPaymentMethod(null);
         order.setSettledAt(null);
         order.setSettledBy(null);
         updateById(order);
 
-        // 5. 异步记录操作日志
+        // 6. 恢复桌台为占用状态
+        if (order.getTableId() != null) {
+            Table table = tableService.getById(order.getTableId());
+            if (table != null && "free".equals(table.getStatus())) {
+                table.setStatus("occupied");
+                tableService.updateById(table);
+            }
+        }
+
+        // 7. 异步记录操作日志
         OperationLog reverseLog = new OperationLog();
         reverseLog.setStoreId(order.getStoreId());
         reverseLog.setOperatorId(operatorId);
