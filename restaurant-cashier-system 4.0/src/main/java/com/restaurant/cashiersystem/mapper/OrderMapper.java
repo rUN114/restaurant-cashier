@@ -9,6 +9,6 @@ import org.apache.ibatis.annotations.Select;
 public interface OrderMapper extends BaseMapper<Order> {
 
     /** 行级锁查询订单，防并发重复结算 */
-    @Select("SELECT * FROM orders WHERE id = #{id} AND deleted_at IS NULL FOR UPDATE")
+    @Select("SELECT * FROM orders WHERE id = #{id} FOR UPDATE")
     Order selectByIdForUpdate(Long id);
 }
