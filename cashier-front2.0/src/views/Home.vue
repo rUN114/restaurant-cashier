@@ -216,6 +216,7 @@ const cards = computed(() => [
   { title: '环比变化', value: revenueChange.value !== null ? `${revenueChange.value >= 0 ? '+' : ''}${revenueChange.value}%` : '--', icon: 'TrendCharts', color: '#fff', bg: 'linear-gradient(135deg, #00bcd4 0%, #0097a7 100%)', image: '/local-images/compare.jpg' },
   { title: t('home.currentStore'), value: user.roleCode === 'ADMIN' ? t('home.allStore') : (user.storeId ? `ID: ${user.storeId}` : t('home.noStore')), icon: 'Shop', color: '#fff', bg: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)', image: '/local-images/store.png' },
   { title: t('home.role'), value: t(`role.${roleLabelKey()}`), icon: 'UserFilled', color: '#fff', bg: 'linear-gradient(135deg, #409eff 0%, #66b1ff 100%)', image: '/local-images/role.jpg' },
+  { title: t('home.version'), value: latestVersion.value, icon: 'Setting', color: '#fff', bg: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)', image: '/local-images/system.png' },
 ])
 
 function roleLabelKey() {
