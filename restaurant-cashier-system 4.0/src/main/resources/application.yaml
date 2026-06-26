@@ -47,7 +47,7 @@ mybatis-plus:
     cache-enabled: true
   global-config:
     db-config:
-      logic-delete-field: deleted_at
+      logic-delete-field: deletedAt
       logic-not-delete-value: "NULL"
       logic-delete-value: "NOW()"
 
