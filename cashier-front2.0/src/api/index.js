@@ -125,5 +125,3 @@ export {
   getAllConfigs,
   updateConfig,
 } from './cost'
-
-export { getDashboard } from './dashboard'
