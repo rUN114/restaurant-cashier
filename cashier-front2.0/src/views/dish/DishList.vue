@@ -118,6 +118,9 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="标签">
+          <el-input v-model="form.tags" placeholder="逗号分隔，如：招牌,微辣,素食" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -170,6 +173,7 @@ const form = ref({
   imageUrl: '',
   isAvailable: 1,
   storeId: null,
+  tags: '',
 })
 
 // 图片路径处理（已配置代理，直接使用）

@@ -14,6 +14,8 @@ const menuItems = computed(() => [
   { index: '/waiter/pos', icon: 'ShoppingCart', label: t('menu.pos') },
   { index: '/waiter/orders', icon: 'List', label: t('menu.orderQuery') },
   { index: '/waiter/kds', icon: 'KnifeFork', label: '服务操控台' },
+  { index: '/waiter/queue', icon: 'List', label: '等位管理' },
+  { index: '/waiter/queue-board', icon: 'Monitor', label: '等位大屏' },
   { index: '/waiter/logs/changelog', icon: 'Clock', label: t('menu.changelog') },
 ])
 </script>

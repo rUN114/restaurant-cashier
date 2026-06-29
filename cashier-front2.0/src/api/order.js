@@ -22,6 +22,9 @@ export const deleteOrderItem = (id, reason) => request.delete(`/order-items/${id
 export const getReturnReasons = (storeId) => request.get('/order-items/return-reasons', { params: { storeId } })
 export const getShiftSummary = () => request.get('/orders/shift-summary')
 export const getCashierRanking = (storeId) => request.get('/statistics/cashier-ranking', { params: { storeId } })
+export const getDishCostCard = (storeId) => request.get('/statistics/dish-cost-card', { params: { storeId } })
+export const getPeakHours = (month, storeId) => request.get('/statistics/peak-hours', { params: { month, storeId } })
+export const getTableTurnover = (storeId) => request.get('/statistics/table-turnover', { params: { storeId } })
 
 // ------ 营业额统计 ------
 export const getTodayTurnover = (storeId) =>

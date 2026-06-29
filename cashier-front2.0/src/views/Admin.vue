@@ -66,7 +66,10 @@ const menuItems = computed(() => [
       { index: '/admin/logs/operation',  label: t('menu.operationLog') },
       { index: '/admin/logs/login',      label: t('menu.loginLog') },
       { index: '/admin/logs/order-item', label: t('menu.orderItemLog') },
-      { index: '/admin/logs/changelog',  label: t('menu.changelog') },
+      { index: '/admin/queue',      icon: 'List',    label: '等位管理' },
+  { index: '/admin/queue-board', icon: 'Monitor', label: '等位大屏' },
+  { index: '/admin/sys-config',  icon: 'Setting', label: '系统配置' },
+  { index: '/admin/logs/changelog',  label: t('menu.changelog') },
     ],
   },
 ])

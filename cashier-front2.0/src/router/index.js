@@ -70,6 +70,16 @@ const router = createRouter({
           meta: { title: '实时大屏' },
         },
         {
+          path: 'queue',
+          component: () => import('@/views/queue/WaitingManage.vue'),
+          meta: { title: '等位管理' },
+        },
+        {
+          path: 'queue-board',
+          component: () => import('@/views/queue/WaitingBoard.vue'),
+          meta: { title: '等位大屏' },
+        },
+        {
           path: 'logs/login',
           component: () => import('@/views/log/LoginLogList.vue'),
           meta: { title: '登录日志' },
@@ -124,6 +134,11 @@ const router = createRouter({
           path: 'members',
           component: () => import('@/views/member/MemberList.vue'),
           meta: { title: '会员管理' },
+        },
+        {
+          path: 'sys-config',
+          component: () => import('@/views/config/SysConfigView.vue'),
+          meta: { title: '系统配置' },
         },
         {
           path: 'member-levels',
@@ -222,6 +237,16 @@ const router = createRouter({
           meta: { title: '实时大屏' },
         },
         {
+          path: 'queue',
+          component: () => import('@/views/queue/WaitingManage.vue'),
+          meta: { title: '等位管理' },
+        },
+        {
+          path: 'queue-board',
+          component: () => import('@/views/queue/WaitingBoard.vue'),
+          meta: { title: '等位大屏' },
+        },
+        {
           path: 'logs/login',
           component: () => import('@/views/log/LoginLogList.vue'),
           meta: { title: '登录日志' },
@@ -297,6 +322,16 @@ const router = createRouter({
           path: 'kds',
           component: () => import('@/views/kds/WaiterKDS.vue'),
           meta: { title: '服务操控台' },
+        },
+        {
+          path: 'queue',
+          component: () => import('@/views/queue/WaitingManage.vue'),
+          meta: { title: '等位管理' },
+        },
+        {
+          path: 'queue-board',
+          component: () => import('@/views/queue/WaitingBoard.vue'),
+          meta: { title: '等位大屏' },
         },
         {
           path: 'logs/changelog',

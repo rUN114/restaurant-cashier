@@ -17,6 +17,8 @@ const menuItems = computed(() => [
   // 营业统计：店长日常核心职责，上移
   { index: '/manager/report', icon: 'TrendCharts', label: t('menu.report') },
   { index: '/manager/bigscreen', icon: 'Monitor', label: '实时大屏' },
+  { index: '/manager/queue', icon: 'List', label: '等位管理' },
+  { index: '/manager/queue-board', icon: 'Monitor', label: '等位大屏' },
 
   // 第二梯队：门店与人员（店长看本店信息、管员工、管餐桌）
   {

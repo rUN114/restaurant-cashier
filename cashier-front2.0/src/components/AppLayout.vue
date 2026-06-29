@@ -99,7 +99,7 @@ const sidebarOpen = ref(false)
 watch(() => route.path, () => { sidebarOpen.value = false })
 
 const openSwagger = () => {
-  window.open('http://localhost:8088/swagger-ui.html', '_blank')
+  window.open('/swagger-ui/index.html', '_blank')
 }
 const user = useUserStore()
 

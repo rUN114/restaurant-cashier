@@ -67,6 +67,20 @@
           </el-button>
 
           <el-button
+            v-if="currentOrder"
+            type="primary"
+            size="small"
+            @click="holdOrder"
+            plain
+          >⏸️ 挂单</el-button>
+
+          <el-button
+            v-if="heldOrders.length > 0"
+            size="small"
+            @click="showHeldOrders = true"
+          >📋 取单({{ heldOrders.length }})</el-button>
+
+          <el-button
             v-if="canCancelOrder && currentOrder"
             type="danger"
             @click="handleCancel"
@@ -78,12 +92,23 @@
 
         <span v-if="currentOrder" class="current-order-info">
           订单 #{{ currentOrder.id }} 桌号: {{ selectedTable?.tableNumber }}
+          <span v-if="orderElapsed > 0" :class="{ 'elapsed-warn': orderElapsed > 1800 }" style="margin-left:8px">
+            ⏱ {{ fmtMin(orderElapsed) }}
+          </span>
         </span>
       </div>
 
       <!-- 分类标签页（含“全部”） -->
       <el-tabs v-model="activeCatId" type="card" class="cat-tabs">
         <el-tab-pane v-for="cat in allCategories" :key="cat.id" :label="cat.name" :name="cat.id">
+          <!-- 标签筛选 -->
+          <div class="tag-filters" v-if="allTags.length > 0">
+            <el-tag v-for="tag in allTags" :key="tag" size="small"
+              :type="activeTag === tag ? 'primary' : 'info'"
+              @click="activeTag = activeTag === tag ? '' : tag"
+              style="cursor:pointer;margin:2px"
+            >{{ tag }}</el-tag>
+          </div>
           <div class="dish-grid">
             <div
               v-for="dish in filteredDishes"
@@ -104,6 +129,9 @@
                 <div v-if="dish.isCombo === 1" class="combo-badge">套餐</div>
               </div>
               <div class="dish-name">{{ dish.name }}</div>
+              <div class="dish-tags" v-if="dish.tags">
+                <el-tag v-for="tag in dish.tags.split(',')" :key="tag" size="small" type="warning" effect="plain" style="margin:1px;font-size:10px">{{ tag.trim() }}</el-tag>
+              </div>
               <div class="dish-price">¥{{ dish.price }}</div>
               <el-button
                 v-if="canToggleDish"
@@ -224,6 +252,12 @@
               size="small"
               class="discount-input"
             />
+            <span class="quick-discounts">
+              <el-button size="small" @click="discountAmount = roundDown(total)">免零头</el-button>
+              <el-button size="small" @click="discountAmount = Math.min(Number(discountAmount||0) + 5, Number(total))">减5</el-button>
+              <el-button size="small" @click="discountAmount = Math.min(Number(discountAmount||0) + 10, Number(total))">减10</el-button>
+              <el-button size="small" @click="discountAmount = (Number(total) * 0.12).toFixed(2)">8.8折</el-button>
+            </span>
           </div>
 
           <div class="final-amount">
@@ -289,6 +323,21 @@
       <template #footer>
         <el-button @click="shiftVisible = false">关闭</el-button>
         <el-button type="primary" @click="printShift">打印</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 挂单对话框 -->
+    <el-dialog v-model="showHeldOrders" title="📋 已挂起订单" width="400px">
+      <div v-if="heldOrders.length === 0" style="color:#999;text-align:center;padding:20px">暂无挂单</div>
+      <div v-for="(h, i) in heldOrders" :key="i" class="held-item" @click="resumeOrder(i)">
+        <span class="held-table">{{ h.tableName }}</span>
+        <span class="held-items">{{ h.items.length }}道菜</span>
+        <span class="held-time">{{ h.time }}</span>
+        <span class="held-total">¥{{ h.total }}</span>
+        <el-button link type="danger" size="small" @click.stop="removeHeld(i)">删除</el-button>
+      </div>
+      <template #footer>
+        <el-button @click="showHeldOrders = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -398,7 +447,7 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
 const { t } = useI18n()
 import {
@@ -456,9 +505,25 @@ const dishes = ref([])
 const selectedTableId = ref(null)
 const selectedTable = computed(() => tables.value.find((t) => t.id === selectedTableId.value))
 const activeCatId = ref('all')
+const activeTag = ref('')
+
+const allTags = computed(() => {
+  const tags = new Set()
+  dishes.value.forEach(d => {
+    if (d.tags) d.tags.split(',').forEach(t => tags.add(t.trim()))
+  })
+  return [...tags].sort()
+})
+
 const filteredDishes = computed(() => {
-  if (activeCatId.value === 'all') return dishes.value
-  return dishes.value.filter((d) => d.categoryId == activeCatId.value)
+  let list = dishes.value
+  if (activeCatId.value !== 'all') {
+    list = list.filter(d => d.categoryId == activeCatId.value)
+  }
+  if (activeTag.value) {
+    list = list.filter(d => d.tags && d.tags.split(',').map(t => t.trim()).includes(activeTag.value))
+  }
+  return list
 })
 const allCategories = computed(() => [{ id: 'all', name: '全部' }, ...categories.value])
 
@@ -487,6 +552,65 @@ const detailVisible = ref(false)
 const detailDish = ref(null)
 const dishRemark = ref('')
 const quickTags = ['少辣', '不要香菜', '不要葱', '打包', '加急', '少盐', '不要蒜', '多煮一会']
+
+// 挂单
+const heldOrders = ref(JSON.parse(localStorage.getItem('heldOrders') || '[]'))
+const showHeldOrders = ref(false)
+
+const holdOrder = () => {
+  if (!currentOrder.value || orderItems.value.length === 0) return ElMessage.warning('空订单无法挂起')
+  const held = {
+    tableId: selectedTableId.value,
+    tableName: selectedTable?.tableNumber || selectedTable?.name || currentOrder.value.tableNumber,
+    items: JSON.parse(JSON.stringify(orderItems.value)),
+    orderId: currentOrder.value.id,
+    total: Number(total.value).toFixed(2),
+    time: new Date().toLocaleTimeString('zh-CN'),
+  }
+  heldOrders.value.push(held)
+  localStorage.setItem('heldOrders', JSON.stringify(heldOrders.value))
+  currentOrder.value = null
+  orderItems.value = []
+  selectedTableId.value = null
+  ElMessage.success('订单已挂起')
+}
+const resumeOrder = (i) => {
+  const held = heldOrders.value[i]
+  selectedTableId.value = held.tableId
+  currentOrder.value = { id: held.orderId, tableId: held.tableId, tableNumber: held.tableName }
+  orderItems.value = held.items
+  refreshItems()
+  heldOrders.value.splice(i, 1)
+  localStorage.setItem('heldOrders', JSON.stringify(heldOrders.value))
+  showHeldOrders.value = false
+  ElMessage.success(`已取回 ${held.tableName} 的订单`)
+}
+const removeHeld = (i) => {
+  heldOrders.value.splice(i, 1)
+  localStorage.setItem('heldOrders', JSON.stringify(heldOrders.value))
+}
+
+// 计时器
+const orderElapsed = ref(0)
+let elapsedTimer = null
+const fmtMin = (s) => {
+  const m = Math.floor(s / 60)
+  return m > 0 ? `${m}分${s % 60}秒` : `${s}秒`
+}
+const roundDown = (v) => (Math.floor(Number(v) * 10) / 10).toFixed(2)
+
+// 键盘快捷键
+const handleKeydown = (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
+  if (e.ctrlKey || e.altKey || e.metaKey) return
+  switch (e.key) {
+    case 'F1': e.preventDefault(); if (selectedTableId.value) handleOpenOrder(); break
+    case 'F2': e.preventDefault(); if (canSettleOrder.value && currentOrder.value) handleSettle(); break
+    case 'F3': e.preventDefault(); if (orderItems.value.length > 0) removeItem(orderItems.value[orderItems.value.length - 1]); break
+    case 'F4': e.preventDefault(); printReceipt(); break
+    case 'F5': e.preventDefault(); holdOrder(); break
+  }
+}
 
 const getTableLabel = (table) => {
   const statusText = table.status === 'free' ? t('table.free') : t('table.occupied')
@@ -562,6 +686,28 @@ const onStoreChange = () => {
 onMounted(() => {
   loadStoreList()
   loadData()
+  // 计时器：每10秒更新
+  elapsedTimer = setInterval(() => {
+    if (currentOrder.value?.createdAt) {
+      orderElapsed.value = Math.floor((Date.now() - new Date(currentOrder.value.createdAt).getTime()) / 1000)
+    }
+  }, 10000)
+  // 快捷键
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onBeforeUnmount(() => {
+  clearInterval(elapsedTimer)
+  window.removeEventListener('keydown', handleKeydown)
+})
+
+// 监听开单重置计时
+watch(currentOrder, (val) => {
+  if (val?.createdAt) {
+    orderElapsed.value = Math.floor((Date.now() - new Date(val.createdAt).getTime()) / 1000)
+  } else {
+    orderElapsed.value = 0
+  }
 })
 
 // 核心修复：使用桌台本身的 storeId 加载订单
@@ -875,7 +1021,6 @@ const recalcCheckout = async () => {
 }
 
 // 监听会员选项变化
-import { watch } from 'vue'
 watch([useMemberDiscount, usePointsRedeem, redeemPoints], () => {
   if (member.value) recalcCheckout()
 })
@@ -1081,6 +1226,8 @@ const handleCancel = async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 .table-block {
   min-width: 64px;
@@ -1169,6 +1316,16 @@ const handleCancel = async () => {
   align-items: center;
   gap: 4px;
 }
+.quick-discounts { display: flex; gap: 4px; margin-left: 8px; flex-wrap: wrap; }
+.quick-discounts .el-button { padding: 2px 8px; font-size: 11px; }
+.elapsed-warn { color: #f56c6c; font-weight: bold; animation: pulse 1s infinite; }
+.held-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; cursor: pointer; background: #f5f7fa; margin-bottom: 8px; }
+.held-item:hover { background: #e8f4fd; }
+.held-table { font-weight: bold; font-size: 16px; color: #303133; }
+.held-items { color: #909399; }
+.held-total { font-weight: bold; color: #409eff; }
+.held-time { color: #bbb; font-size: 12px; margin-left: auto; }
+
 .discount-label {
   font-size: 13px;
 }

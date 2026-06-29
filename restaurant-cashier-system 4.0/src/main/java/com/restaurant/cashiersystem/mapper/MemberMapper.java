@@ -12,8 +12,8 @@ import java.math.BigDecimal;
 @Mapper
 public interface MemberMapper extends BaseMapper<Member> {
 
-    /** 根据手机号查找 */
-    @Select("SELECT * FROM member WHERE phone = #{phone} AND deleted_at IS NULL")
+    /** 根据手机号模糊查找 */
+    @Select("SELECT * FROM member WHERE phone LIKE CONCAT('%', #{phone}, '%') AND deleted_at IS NULL")
     Member selectByPhone(@Param("phone") String phone);
 
     /** 加锁查询（防并发） */

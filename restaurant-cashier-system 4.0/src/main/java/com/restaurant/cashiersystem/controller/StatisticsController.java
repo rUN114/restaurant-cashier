@@ -119,6 +119,46 @@ public class StatisticsController {
         return Result.success(statisticsService.getStoreMonthTurnover(month));
     }
 
+    /** 菜品成本卡：售价 - 配方原料成本 = 理论毛利 */
+    @GetMapping("/dish-cost-card")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> dishCostCard(@RequestParam(required = false) Long storeId) {
+        String sf = storeId != null ? " AND d.store_id = " + storeId : "";
+        String sql = "SELECT d.id, d.name, d.price, " +
+            "COALESCE(SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)), 0) AS cost, " +
+            "CASE WHEN d.price > 0 THEN ROUND((d.price - COALESCE(SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)), 0)) / d.price * 100, 1) ELSE 0 END AS margin " +
+            "FROM dishes d LEFT JOIN dish_recipes dr ON dr.dish_id = d.id " +
+            "LEFT JOIN material_inventory mi ON mi.material_id = dr.material_id AND mi.store_id = d.store_id " +
+            "WHERE d.deleted_at IS NULL" + sf +
+            " GROUP BY d.id, d.name, d.price ORDER BY margin DESC";
+        return Result.success(jdbcTemplate.queryForList(sql));
+    }
+
+    /** 高峰时段分析：按小时统计订单数 */
+    @GetMapping("/peak-hours")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> peakHours(@RequestParam(required = false) String month,
+                                                        @RequestParam(required = false) Long storeId) {
+        String sf = storeId != null ? " AND store_id = " + storeId : "";
+        String monthFilter = month != null ? " AND DATE_FORMAT(created_at, '%Y-%m') = '" + month + "'" : "";
+        String sql = "SELECT HOUR(created_at) AS hour, COUNT(*) AS cnt " +
+                "FROM orders WHERE status = 'settled'" + sf + monthFilter +
+                " GROUP BY HOUR(created_at) ORDER BY hour";
+        return Result.success(jdbcTemplate.queryForList(sql));
+    }
+
+    /** 翻台率：每张桌今天被用了几次 */
+    @GetMapping("/table-turnover")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> tableTurnover(@RequestParam(required = false) Long storeId) {
+        String sf = storeId != null ? " AND o.store_id = " + storeId : "";
+        String sql = "SELECT o.table_number, COUNT(*) AS times, " +
+                "COALESCE(SUM(o.final_amount), 0) AS total " +
+                "FROM orders o WHERE o.status = 'settled' AND DATE(o.settled_at) = CURDATE()" + sf +
+                " GROUP BY o.table_number ORDER BY times DESC";
+        return Result.success(jdbcTemplate.queryForList(sql));
+    }
+
     @GetMapping("/gross-profit")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     public Result<List<Map<String, Object>>> grossProfit(

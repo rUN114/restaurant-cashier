@@ -150,6 +150,54 @@
         </el-col>
       </el-row>
 
+      <!-- 菜品成本卡 -->
+      <el-row :gutter="20" style="margin-top: 20px;">
+        <el-col :xs="24" :sm="12">
+          <div class="chart-card">
+            <h4 style="margin-bottom:12px">💰 菜品理论成本</h4>
+            <el-table :data="costCardData" stripe size="small" max-height="400">
+              <el-table-column prop="name" label="菜品" width="100" />
+              <el-table-column label="售价" width="80">
+                <template #default="{ row }">¥{{ Number(row.price||0).toFixed(2) }}</template>
+              </el-table-column>
+              <el-table-column label="原料成本" width="80">
+                <template #default="{ row }">¥{{ Number(row.cost||0).toFixed(2) }}</template>
+              </el-table-column>
+              <el-table-column label="毛利率" width="80">
+                <template #default="{ row }">
+                  <el-tag :type="Number(row.margin) >= 50 ? 'success' : Number(row.margin) >= 20 ? 'warning' : 'danger'" size="small">
+                    {{ row.margin }}%
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-col>
+        <el-col :xs="24" :sm="12">
+          <div class="chart-card">
+            <h4 style="margin-bottom:12px">🕐 高峰时段</h4>
+            <div id="chart-peak-hours" style="width:100%;height:320px"></div>
+          </div>
+        </el-col>
+      </el-row>
+
+      <!-- 翻台率 -->
+      <el-row :gutter="20" style="margin-top: 20px;">
+        <el-col :span="24">
+          <div class="chart-card">
+            <h4 style="margin-bottom:12px">🔄 今日翻台率</h4>
+            <el-table :data="turnoverData" stripe size="small">
+              <el-table-column type="index" label="#" width="50" />
+              <el-table-column prop="table_number" label="桌号" />
+              <el-table-column prop="times" label="翻台次数" width="100" sortable />
+              <el-table-column label="营业额" width="120" sortable sort-by="total">
+                <template #default="{ row }">¥{{ Number(row.total||0).toFixed(2) }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-col>
+      </el-row>
+
       <el-row v-if="isAdmin" :gutter="20" style="margin-top: 20px;">
         <el-col :span="24">
           <div class="chart-card">
@@ -170,7 +218,7 @@ const { t } = useI18n()
 import { getAllStores } from '@/api'
 
 import request from '@/utils/request'
-import { getReturnReasons, getCashierRanking } from '@/api/order'
+import { getReturnReasons, getCashierRanking, getDishCostCard, getPeakHours, getTableTurnover } from '@/api/order'
 import { ElMessage } from 'element-plus'
 import { exportExcel } from '@/composables/useExcel'
 
@@ -196,6 +244,8 @@ const grossProfitData = ref([])
 const returnReasonData = ref([])
 const totalReturns = ref(0)
 const cashierRankData = ref([])
+const costCardData = ref([])
+const turnoverData = ref([])
 const rankLoading = ref(false)
 const loading = ref(false)
 
@@ -206,6 +256,7 @@ let chartDayTrend = null
 let chartPaymentType = null
 let chartStoreTurnover = null
 let chartReturnReasons = null
+let chartPeakHours = null
 
 // 加载门店
 const loadStores = async () => {
@@ -263,6 +314,25 @@ const loadAll = async () => {
       const crRes = await getCashierRanking(storeParam || null)
         cashierRankData.value = crRes.data || []
       } catch (e) { cashierRankData.value = [] }
+
+      // 菜品成本卡
+      try {
+        const ccRes = await getDishCostCard(storeParam || null)
+        costCardData.value = ccRes.data || []
+      } catch (e) { costCardData.value = [] }
+
+      // 翻台率
+      try {
+        const ttRes = await getTableTurnover(storeParam || null)
+        turnoverData.value = ttRes.data || []
+      } catch (e) { turnoverData.value = [] }
+
+      // 高峰时段
+      try {
+        const phRes = await getPeakHours(selectedMonth.value, storeParam || null)
+        renderPeakHoursChart(phRes.data || [])
+      } catch (e) { /* ignore */ }
+
       try {
         const rrRes = await getReturnReasons(storeParam || null)
       returnReasonData.value = rrRes.data || []
@@ -366,11 +436,30 @@ const renderReturnReasonsChart = async () => {
   })
 }
 
+const renderPeakHoursChart = async (data) => {
+  if (!data || data.length === 0) return
+  const echarts = await getEcharts()
+  if (!chartPeakHours) chartPeakHours = echarts.init(document.getElementById('chart-peak-hours'))
+  const hours = Array.from({ length: 24 }, (_, i) => i)
+  const counts = hours.map(h => {
+    const found = data.find(d => Number(d.hour) === h)
+    return found ? Number(found.cnt) : 0
+  })
+  chartPeakHours.setOption({
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: hours.map(h => h + ':00'), axisLabel: { rotate: 45 } },
+    yAxis: { type: 'value', name: '订单数' },
+    series: [{ data: counts, type: 'bar', itemStyle: { color: '#ff9800' } }],
+    grid: { bottom: '20%' }
+  })
+}
+
 const onResize = () => {
   chartDayTrend?.resize()
   chartPaymentType?.resize()
   chartStoreTurnover?.resize()
   chartReturnReasons?.resize()
+  chartPeakHours?.resize()
 }
 
 const exportReport = () => {

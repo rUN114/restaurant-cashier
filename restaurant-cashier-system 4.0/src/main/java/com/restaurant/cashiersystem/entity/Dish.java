@@ -26,6 +26,8 @@ public class Dish {
     private Integer isCombo;
     /** 套餐包含的菜品ID，逗号分隔 */
     private String comboDishes;
+    /** 菜品标签，逗号分隔 如: 招牌,微辣,素食 */
+    private String tags;
 
     @Version
     private Integer version;
