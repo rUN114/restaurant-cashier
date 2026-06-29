@@ -71,6 +71,8 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         // 放行 Actuator 健康检查（容器探活用）
                         .requestMatchers("/actuator/health/**").permitAll()
+                        // 放行 WebSocket
+                        .requestMatchers("/ws/**").permitAll()
                         // 其他请求需要认证
                         .anyRequest().authenticated()
                 )

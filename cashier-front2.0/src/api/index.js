@@ -16,6 +16,7 @@ export {
   deleteDish,
   getAllDishes,
   uploadDishImage,
+  toggleDish,
 } from './dish'
 
 export {
@@ -34,6 +35,8 @@ export {
   addOrderItem,
   updateOrderItem,
   deleteOrderItem,
+  getReturnReasons,
+  getShiftSummary,
   // 营业额统计
   getTodayTurnover,
   getMonthTurnover,
@@ -109,6 +112,8 @@ export {
   adjustInventory,
   getLowStock,
   getStockRecords,
+  getPurchaseHistory,
+  backfillCostPrice,
 } from './inventory'
 
 export {
@@ -126,4 +131,4 @@ export {
   updateConfig,
 } from './cost'
 
-export { getDashboard } from './dashboard'
+export { getDashboard, getBigScreen } from './dashboard'

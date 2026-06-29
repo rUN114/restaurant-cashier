@@ -65,6 +65,11 @@ const router = createRouter({
           meta: { title: '营业统计' },
         },
         {
+          path: 'bigscreen',
+          component: () => import('@/views/dashboard/BigScreen.vue'),
+          meta: { title: '实时大屏' },
+        },
+        {
           path: 'logs/login',
           component: () => import('@/views/log/LoginLogList.vue'),
           meta: { title: '登录日志' },
@@ -212,6 +217,11 @@ const router = createRouter({
           meta: { title: '营业统计' },
         },
         {
+          path: 'bigscreen',
+          component: () => import('@/views/dashboard/BigScreen.vue'),
+          meta: { title: '实时大屏' },
+        },
+        {
           path: 'logs/login',
           component: () => import('@/views/log/LoginLogList.vue'),
           meta: { title: '登录日志' },
@@ -253,6 +263,11 @@ const router = createRouter({
           meta: { title: '订单查询' },
         },
         {
+          path: 'bigscreen',
+          component: () => import('@/views/dashboard/BigScreen.vue'),
+          meta: { title: '实时大屏' },
+        },
+        {
           path: 'logs/changelog',
           component: () => import('@/views/log/ChangelogList.vue'),
           meta: { title: '更新日志' },
@@ -277,6 +292,11 @@ const router = createRouter({
           path: 'orders',
           component: () => import('@/views/order/OrderList.vue'),
           meta: { title: '订单查询' },
+        },
+        {
+          path: 'kds',
+          component: () => import('@/views/kds/WaiterKDS.vue'),
+          meta: { title: '服务操控台' },
         },
         {
           path: 'logs/changelog',
@@ -340,6 +360,11 @@ const router = createRouter({
           meta: { title: '订单查询' },
         },
         {
+          path: 'kds',
+          component: () => import('@/views/kds/KDSView.vue'),
+          meta: { title: '后厨看板' },
+        },
+        {
           path: 'logs/changelog',
           component: () => import('@/views/log/ChangelogList.vue'),
           meta: { title: '更新日志' },
@@ -379,8 +404,8 @@ router.beforeEach((to, from, next) => {
       STORE_ADMIN: '/manager',
       CASHIER: '/cashier',
       WAITER: '/waiter',
-      PURCHASER: '/buyer', // 新增
-      CHEF: '/chef', // 新增
+      PURCHASER: '/buyer',
+      CHEF: '/chef',
     }
     next(roleHomeMap[role] || '/login')
     return

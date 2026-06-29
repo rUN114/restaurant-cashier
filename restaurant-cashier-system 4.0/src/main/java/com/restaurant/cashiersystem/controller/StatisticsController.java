@@ -133,6 +133,23 @@ public class StatisticsController {
         return Result.success(statisticsService.getGrossProfit(storeId, month));
     }
 
+    /** 今日收银员绩效排行 */
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @GetMapping("/cashier-ranking")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<Map<String, Object>>> cashierRanking(@RequestParam(required = false) Long storeId) {
+        String sf = storeId != null ? " AND o.store_id = " + storeId : "";
+        String sql = "SELECT o.settled_by, COALESCE(u.real_name, u.username, '未知') AS name, " +
+                "COUNT(*) AS orders, COALESCE(SUM(o.final_amount),0) AS amount, " +
+                "COALESCE((SELECT COUNT(*) FROM order_items oi WHERE oi.return_reason IS NOT NULL " +
+                " AND oi.store_id = o.store_id AND DATE(oi.deleted_at) = CURDATE()), 0) AS returns " +
+                "FROM orders o LEFT JOIN users u ON o.settled_by = u.id " +
+                "WHERE o.status = 'settled' AND DATE(o.settled_at) = CURDATE()" + sf +
+                " GROUP BY o.settled_by, u.real_name, u.username, o.store_id ORDER BY amount DESC";
+        return Result.success(jdbcTemplate.queryForList(sql));
+    }
+
     // ===== token 解析工具方法 =====
     private String getRoleFromToken(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");

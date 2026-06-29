@@ -12,7 +12,12 @@ public class Material {
     private Long id;
     private Long storeId;
     private String name;
+    /** 库存/配方单位（g, ml, 个） */
     private String unit;
+    /** 采购单位（斤, kg, 瓶, 箱） */
+    private String purchaseUnit;
+    /** 1个采购单位 = 多少个库存单位（如 1斤=500g → 500） */
+    private BigDecimal unitRate;
     private BigDecimal warningStock;
 
     @TableLogic

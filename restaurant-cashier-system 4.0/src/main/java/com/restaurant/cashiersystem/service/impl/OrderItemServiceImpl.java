@@ -91,6 +91,7 @@ public class OrderItemServiceImpl extends ServiceImpl<OrderItemMapper, OrderItem
 
     public boolean removeById(Long id) {
         OrderItem item = getById(id);
+        if (item == null) return false;
         checkOrderStatus(item.getOrderId());
         boolean result = super.removeById(id);
 
@@ -109,6 +110,19 @@ public class OrderItemServiceImpl extends ServiceImpl<OrderItemMapper, OrderItem
         } catch (Exception e) { /* ignore */ }
 
         return result;
+    }
+
+    @Override
+    public List<OrderItem> getInProgressItemsByStore(Long storeId) {
+        // 查门店下所有 in_progress 订单的菜品（未出餐的）
+        LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
+        if (storeId != null) {
+            wrapper.eq(OrderItem::getStoreId, storeId);
+        }
+        wrapper.inSql(OrderItem::getOrderId,
+                   "SELECT id FROM orders WHERE status = 'in_progress'")
+               .ne(OrderItem::getKitchenStatus, "SERVED");
+        return list(wrapper);
     }
 
     private void checkOrderStatus(Long orderId) {

@@ -13,6 +13,7 @@ const menuItems = computed(() => [
   { index: '/cashier/home', icon: 'HomeFilled', label: t('menu.home') },
   { index: '/cashier/pos', icon: 'ShoppingCart', label: t('menu.pos') },
   { index: '/cashier/orders', icon: 'List', label: t('menu.orderQuery') },
+  { index: '/cashier/bigscreen', icon: 'Monitor', label: '实时大屏' },
   { index: '/cashier/logs/changelog', icon: 'Clock', label: t('menu.changelog') },
 ])
 </script>

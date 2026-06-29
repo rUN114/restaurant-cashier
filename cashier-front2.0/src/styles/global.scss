@@ -1,78 +1,238 @@
-// 全局样式 - 餐饮收银系统统一视觉
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* ====== 暗色模式全量覆盖 ====== */
+html.dark {
+  body, .page-container, .el-container {
+    background: #141414 !important;
+    color: #cfd3dc;
+  }
 
-body {
-  background-color: #f0f2f5;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
-}
+  /* ---- 布局 ---- */
+  .el-header {
+    background: #1d1d1d !important;
+    border-bottom: 1px solid #333 !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3) !important;
+  }
+  .el-main {
+    background: #141414 !important;
+  }
+  .el-aside, .el-menu {
+    background: #1d1d1d !important;
+  }
+  .el-breadcrumb__inner { color: #a3a6ad !important; }
 
-// 页面主容器
-.page-container {
-  padding: 20px;
-  min-height: calc(100vh - 60px);
-  background-color: #f0f2f5;
-}
+  /* ---- 卡片 ---- */
+  .el-card {
+    background: #1d1d1d !important;
+    border-color: #333 !important;
+  }
+  .el-card__header {
+    background: #1d1d1d !important;
+    color: #cfd3dc !important;
+    border-bottom-color: #333 !important;
+  }
 
-// 页面头部（标题 + 操作区），替代各页面重复的 .page-header scoped 样式
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+  /* ---- 表格 ---- */
+  .el-table {
+    --el-table-bg-color: #1d1d1d;
+    --el-table-tr-bg-color: #1d1d1d;
+    --el-table-header-bg-color: #262626;
+    --el-table-row-hover-bg-color: #333;
+    --el-table-border-color: #333;
+    --el-table-text-color: #cfd3dc;
+    --el-table-header-text-color: #cfd3dc;
+  }
+  .el-table th.el-table__cell { background: #262626 !important; color: #cfd3dc !important; }
+  .el-table td.el-table__cell { border-bottom-color: #333 !important; }
+  .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+    background: #222 !important;
+  }
 
-// 白色卡片（大部分内容区域可套用）
-.white-card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.2s;
+  /* ---- 弹出层 ---- */
+  .el-dialog {
+    --el-dialog-bg-color: #1d1d1d;
+    --el-dialog-title-color: #cfd3dc;
+  }
+  .el-drawer { --el-drawer-bg-color: #1d1d1d; }
+  .el-popover, .el-popper { background: #262626 !important; color: #cfd3dc !important; }
 
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* ---- 折叠面板 ---- */
+  .el-collapse-item__header {
+    background: #262626 !important;
+    color: #cfd3dc !important;
+    border-bottom-color: #333 !important;
+  }
+  .el-collapse-item__wrap { background: #1d1d1d !important; border-color: #333 !important; }
+
+  /* ---- 表单 ---- */
+  .el-input__wrapper, .el-textarea__inner {
+    background: #262626 !important;
+    box-shadow: 0 0 0 1px #444 inset !important;
+  }
+  .el-input__inner, .el-textarea__inner { color: #cfd3dc !important; }
+  .el-select .el-input .el-input__wrapper { background: #262626 !important; }
+  .el-select-dropdown { background: #262626 !important; }
+  .el-select-dropdown__item { color: #cfd3dc !important; }
+  .el-select-dropdown__item.hover, .el-select-dropdown__item:hover {
+    background: #333 !important;
+  }
+  .el-radio__label, .el-checkbox__label { color: #cfd3dc !important; }
+
+  /* ---- 按钮 ---- */
+  .el-button--default {
+    --el-button-bg-color: #333;
+    --el-button-border-color: #444;
+    --el-button-text-color: #cfd3dc;
+  }
+  .el-button--default:hover {
+    --el-button-hover-bg-color: #444;
+    --el-button-hover-border-color: #555;
+  }
+
+  /* ---- 标签 ---- */
+  .el-tag--info { --el-tag-bg-color: #333; --el-tag-text-color: #a3a6ad; }
+
+  /* ---- 分页 ---- */
+  .el-pagination .el-pager li {
+    background: #262626 !important; color: #cfd3dc !important;
+  }
+  .el-pagination .el-pager li.active { background: var(--el-color-primary) !important; }
+  .el-pagination button { background: #262626 !important; color: #cfd3dc !important; }
+
+  /* ---- 标签页 ---- */
+  .el-tabs__header { border-bottom-color: #333 !important; }
+  .el-tabs__item { color: #a3a6ad !important; }
+  .el-tabs__item.is-active { color: var(--el-color-primary) !important; }
+
+  /* ---- 描述列表 ---- */
+  .el-descriptions__body .el-descriptions__table.is-bordered .el-descriptions__cell {
+    background: #1d1d1d !important; border-color: #333 !important; color: #cfd3dc;
+  }
+
+  /* ---- POS 收银 ---- */
+  .pos-container, .pos-left, .pos-right, .table-bar, .dish-grid {
+    background: transparent !important;
+  }
+  .dish-card {
+    background: #262626 !important;
+    border-color: #333 !important;
+  }
+  .dish-card:hover { border-color: #409eff !important; background: #2a2a2a !important; }
+  .dish-card.soldout { background: #1a1a1a !important; opacity: 0.6; }
+  .dish-name, .dish-price { color: #cfd3dc !important; }
+  .total-box { background: #1d1d1d !important; border-color: #333 !important; }
+  .member-info-box { background: #262626 !important; border-color: #333 !important; }
+  .table-block.free { background: #1a2e1a !important; color: #81c784 !important; border-color: #2e5a2e !important; }
+  .table-block.occupied { background: #2e1a1a !important; color: #ef9a9a !important; border-color: #5a2e2e !important; }
+  .co-item { background: #262626 !important; border-color: #333 !important; }
+  .co-item:hover { background: #1a3050 !important; border-color: #409eff !important; }
+  .co-table { color: #cfd3dc !important; }
+
+  /* ---- Home 仪表盘 ---- */
+  .quick-item { background: #262626 !important; }
+  .quick-item:hover { background: #333 !important; }
+  .quick-warning { background: #2a1f1f !important; border-color: #4a3030 !important; }
+  .welcome-banner { opacity: 0.85; }
+  .stock-item { background: #262626 !important; border-color: #333 !important; }
+  .stock-item:hover { background: #333 !important; }
+
+  /* ---- 图表卡片 ---- */
+  .chart-card { background: #1d1d1d !important; border-color: #333 !important; }
+
+  /* ---- 登录页 ---- */
+  .login-container { background: #141414 !important; }
+  .login-card, .login-form { background: #1d1d1d !important; }
+
+  /* ---- 通知 ---- */
+  .notify-item { border-bottom-color: #333 !important; }
+  .notify-item:hover { background: #262626 !important; }
+
+  /* ---- POS 弹窗 ---- */
+  .dish-detail { color: #cfd3dc; }
+  .detail-remark { color: #a3a6ad !important; }
+
+  /* ---- Home 额外 ---- */
+  .el-collapse-item__header { color: #cfd3dc !important; }
+  .stock-item { background: #262626 !important; border-color: #444 !important; }
+  .stock-item:hover { background: #333 !important; }
+  .stock-name { color: #cfd3dc !important; }
+  .stock-info { color: #a3a6ad !important; }
+  .changelog-collapse .el-collapse-item__header { background: #262626 !important; }
+
+  /* ---- 面包屑 ---- */
+  .el-breadcrumb__inner, .el-breadcrumb__item:last-child .el-breadcrumb__inner {
+    color: #a3a6ad !important;
+  }
+
+  /* ---- 小票 ---- */
+  .receipt { color: #cfd3dc; }
+  .receipt h3 { color: #cfd3dc; }
+  .receipt td { border-bottom-color: #333 !important; }
+  .el-divider { border-top-color: #333 !important; }
+  .el-divider__text { background: #1d1d1d !important; color: #a3a6ad !important; }
+
+  /* ---- 语言切换 ---- */
+  .lang-switcher { background: #333 !important; }
+
+  /* ---- 验证码 ---- */
+  .slider-captcha, .captcha-slider { background: #262626 !important; }
+  .slider-captcha-text { color: #cfd3dc !important; }
+
+  /* ---- 过渡 ---- */
+  *, *::before, *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
   }
 }
 
-// 表格上方的操作栏
-.table-toolbar {
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
+/* ====== 手机端适配 ====== */
+@media (max-width: 768px) {
+  /* 卡片全宽 */
+  .el-col { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; }
+  .stats-row { margin-bottom: 12px; }
+  .stat-card { margin-bottom: 10px; }
+
+  /* POS */
+  .pos-container { flex-direction: column !important; height: auto !important; }
+  .pos-left, .pos-right { width: 100% !important; flex: none !important; }
+  .dish-card { width: 100% !important; }
+  .dish-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  .dish-img { height: 60px !important; }
+  .el-image { height: 60px !important; }
+
+  /* 桌台方块 */
+  .table-block { width: 56px; height: 48px; font-size: 12px; }
+  .table-block .tbl-num { font-size: 14px; }
+
+  /* 弹窗全屏 */
+  .el-dialog { width: 95% !important; max-width: 95% !important; }
+  .el-message-box { width: 90% !important; }
+
+  /* KDS 竖排 */
+  .kds-columns { flex-direction: column !important; }
+  .kds-col { min-height: auto !important; }
+  .card-table { font-size: 24px !important; }
+  .card-dish { font-size: 16px !important; }
+
+  /* 大屏 */
+  .bs-kpi-row { flex-wrap: wrap !important; }
+  .bs-kpi { flex: 0 0 48% !important; }
+  .bs-body { flex-direction: column !important; }
+  .kpi-value { font-size: 28px !important; }
+
+  /* 快捷入口 */
+  .quick-buttons { gap: 10px !important; }
+  .quick-item { width: 70px; height: 60px; font-size: 12px; }
+
+  /* 表格横向滚动 */
+  .el-table { font-size: 12px !important; }
+
+  /* 隐藏大屏上的非核心元素 */
+  .header-bar .el-breadcrumb { display: none; }
+
+  /* 按钮间距 */
+  .action-buttons { gap: 4px !important; }
+
+  /* WaiterKDS */
+  .wk-grid { grid-template-columns: 1fr !important; }
+  .wk-order-card { width: 100% !important; }
+  .wk-table { font-size: 20px !important; }
 }
 
-// 按钮组
-.btn-group {
-  display: flex;
-  gap: 12px;
-}
-
-// 分页组件
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-// 页面标题（可选）
-.page-title {
-  font-size: 20px;
-  font-weight: 500;
-  margin-bottom: 20px;
-  color: #1f2f3d;
-  padding-left: 8px;
-  border-left: 4px solid #409eff;
-}
-
-// 筛选区
-.filter-group {
-  display: flex;
-  align-items: center;
-}

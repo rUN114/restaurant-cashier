@@ -2,6 +2,7 @@
 <template>
   <div class="login-page">
     <div class="lang-bar">
+      <el-button link class="theme-btn" @click="toggleTheme">{{ isDark ? '☀️' : '🌙' }}</el-button>
       <LangSwitcher variant="light" />
     </div>
 
@@ -84,6 +85,8 @@ import { useUserStore } from '@/stores/user'
 import request from '@/utils/request'
 import LangSwitcher from '@/components/LangSwitcher.vue'
 import CaptchaSlider from '@/components/CaptchaSlider.vue'
+import { useTheme } from '@/composables/useTheme'
+const { isDark, toggle: toggleTheme } = useTheme()
 
 const { t } = useI18n()
 const router = useRouter()
@@ -212,7 +215,11 @@ const doLogin = async (captchaPayload = null) => {
   top: 20px;
   right: 30px;
   z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+.theme-btn { font-size: 22px; }
 
 .nav-bar {
   position: fixed;

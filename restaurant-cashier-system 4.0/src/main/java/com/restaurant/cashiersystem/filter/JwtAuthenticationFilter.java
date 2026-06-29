@@ -60,6 +60,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        // 记录请求 IP 到线程上下文，供操作日志使用
+        com.restaurant.cashiersystem.util.RequestContext.setClientIp(getClientIp(request));
+        try {
+            doFilterLogic(request, response, filterChain);
+        } finally {
+            com.restaurant.cashiersystem.util.RequestContext.clear();
+        }
+    }
+
+    private void doFilterLogic(HttpServletRequest request,
+                               HttpServletResponse response,
+                               FilterChain filterChain) throws ServletException, IOException {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
@@ -81,12 +93,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     }
                     // ========== 黑名单校验结束 ==========
 
-                    // ========== 分店停用校验（非 admin_global 用户） ==========
+                    // ========== 分店停用/删除校验（非 admin_global 用户） ==========
                     if (!"admin_global".equals(roleCode)) {
                         Long storeId = claims.get("storeId", Long.class);
                         if (storeId != null && !isExcludedPath(request.getRequestURI())) {
                             Store store = storeService.getStoreById(storeId);
-                            if (store != null && store.getStatus() != null && store.getStatus() == 0) {
+                            if (store == null) {
+                                response.setContentType("application/json;charset=UTF-8");
+                                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                                response.getWriter().write(
+                                    "{\"code\":403,\"msg\":\"所属分店已删除，操作被拒绝\",\"data\":null}"
+                                );
+                                return;
+                            }
+                            if (store.getStatus() != null && store.getStatus() == 0) {
                                 response.setContentType("application/json;charset=UTF-8");
                                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                                 response.getWriter().write(
@@ -121,6 +141,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        return ip != null && ip.length() > 45 ? ip.substring(0, 45) : ip;
     }
 
     /**

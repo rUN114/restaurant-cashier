@@ -1,8 +1,10 @@
 package com.restaurant.cashiersystem.config;
 
 import com.restaurant.cashiersystem.common.Result;
+import org.mybatis.spring.MyBatisSystemException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,6 +17,25 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /** 乐观锁冲突：两人同时修改同一条数据 */
+    @ExceptionHandler(MyBatisSystemException.class)
+    public Result<Void> handleOptimisticLock(MyBatisSystemException e) {
+        Throwable cause = e.getCause();
+        if (cause != null && cause.getClass().getName().contains("OptimisticLock")) {
+            log.warn("乐观锁冲突: {}", cause.getMessage());
+            return Result.error("数据已被他人修改，请刷新后重试");
+        }
+        log.error("MyBatis 系统异常", e);
+        return Result.error("系统异常，请稍后重试");
+    }
+
+    /** 唯一键冲突 */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public Result<Void> handleDuplicateKey(DuplicateKeyException e) {
+        log.warn("唯一键冲突: {}", e.getMessage());
+        return Result.error("数据已存在，请勿重复操作");
+    }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public Result<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {

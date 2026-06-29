@@ -19,16 +19,18 @@
           />
         </el-select>
 
-        <!-- 桌台选择 -->
-        <el-select
-          v-model="selectedTableId"
-          :placeholder="$t('common.pleaseSelect')"
-          clearable
-          class="table-select"
-          @change="onTableChange"
-        >
-          <el-option v-for="t in tables" :key="t.id" :label="getTableLabel(t)" :value="t.id" />
-        </el-select>
+        <!-- 桌台平面图 -->
+        <div class="table-grid">
+          <div
+            v-for="t in tables"
+            :key="t.id"
+            :class="['table-block', t.status, { selected: t.id === selectedTableId }]"
+            @click="onTableChange(t.id)"
+          >
+            <span class="tbl-num" :title="getTableLabel(t)">{{ t.tableNumber || t.id }}</span>
+            <span class="tbl-st">{{ t.status === 'free' ? '空闲' : t.status === 'occupied' ? '用餐中' : t.status || '未知' }}</span>
+          </div>
+        </div>
 
         <div class="action-buttons">
           <el-button
@@ -49,6 +51,19 @@
             size="small"
           >
             结账
+          </el-button>
+
+          <el-button
+            v-if="canShift"
+            type="info"
+            size="small"
+            @click="openShift"
+          >
+            📋 交接班
+          </el-button>
+
+          <el-button link size="small" @click="toggleVoice" :type="voiceOn ? 'warning' : 'info'" style="margin-left:4px">
+            {{ voiceOn ? '🔊' : '🔇' }}
           </el-button>
 
           <el-button
@@ -73,8 +88,8 @@
             <div
               v-for="dish in filteredDishes"
               :key="dish.id"
-              class="dish-card"
-              @click="openDetail(dish)"
+              :class="['dish-card', { soldout: dish.isAvailable === 0 }]"
+              @click="dish.isAvailable !== 0 && openDetail(dish)"
             >
               <div class="dish-img">
                 <el-image
@@ -85,9 +100,18 @@
                   style="width: 100%; height: 80px"
                 />
                 <div v-else class="dish-placeholder">{{ ("common.noData") }}</div>
+                <div v-if="dish.isAvailable === 0" class="soldout-badge">沽清</div>
+                <div v-if="dish.isCombo === 1" class="combo-badge">套餐</div>
               </div>
               <div class="dish-name">{{ dish.name }}</div>
               <div class="dish-price">¥{{ dish.price }}</div>
+              <el-button
+                v-if="canToggleDish"
+                link
+                size="small"
+                :type="dish.isAvailable === 1 ? 'danger' : 'success'"
+                @click.stop="toggleSoldOut(dish)"
+              >{{ dish.isAvailable === 1 ? '沽清' : '上架' }}</el-button>
             </div>
           </div>
         </el-tab-pane>
@@ -117,6 +141,29 @@
             </el-table-column>
             <el-table-column :label="$t('pos.subtotal')" width="80">
               <template #default="{ row }"> ¥{{ (row.price * row.quantity).toFixed(2) }} </template>
+            </el-table-column>
+            <el-table-column label="备注" width="110">
+              <template #default="{ row }">
+                <el-popover trigger="click" :width="220" v-if="canModifyOrder">
+                  <template #reference>
+                    <el-tag size="small" :type="row.remark ? 'warning' : 'info'" style="cursor:pointer">
+                      {{ row.remark || '添加' }}
+                    </el-tag>
+                  </template>
+                  <div class="quick-tags" style="margin-bottom:8px">
+                    <el-tag v-for="tag in quickTags" :key="tag" size="small"
+                      :type="row.remark === tag ? 'primary' : 'info'"
+                      style="cursor:pointer;margin:2px"
+                      @click="editRemark(row, tag)">{{ tag }}</el-tag>
+                  </div>
+                  <el-input v-model="row._remarkTemp" size="small" placeholder="自定义备注"
+                    @keyup.enter="editRemark(row, row._remarkTemp)" />
+                  <el-button size="small" type="primary" style="margin-top:6px" @click="editRemark(row, row._remarkTemp || '')">确认</el-button>
+                </el-popover>
+                <el-tag v-else size="small" :type="row.remark ? 'warning' : 'info'">
+                  {{ row.remark || '-' }}
+                </el-tag>
+              </template>
             </el-table-column>
             <!-- 只要订单进行中，任何人都可以删除菜品 -->
             <el-table-column :label="$t('common.operate')" width="60">
@@ -211,6 +258,90 @@
       </div>
     </div>
 
+    <!-- 交接班对话框 -->
+    <el-dialog v-model="shiftVisible" title="📋 交接班" width="420px">
+      <div v-if="shift" class="shift-summary">
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="收银员ID">{{ shift.cashierId }}</el-descriptions-item>
+          <el-descriptions-item label="今日总笔数">{{ shift.totalOrders }} 单</el-descriptions-item>
+          <el-descriptions-item label="合计收款"><b style="font-size:20px;color:#409eff">¥{{ fmt(shift.totalAmount) }}</b></el-descriptions-item>
+          <el-descriptions-item label="系统营业额">¥{{ fmt(shift.systemTotal) }}</el-descriptions-item>
+          <el-descriptions-item label="对账差异">
+            <span :style="{ color: diff === 0 ? '#67c23a' : '#f56c6c', fontWeight:'bold' }">
+              {{ diff >= 0 ? '+' : '' }}¥{{ fmt(Math.abs(diff)) }}
+              {{ diff === 0 ? '✓ 平账' : diff > 0 ? '(多收)' : '(少收)' }}
+            </span>
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <el-divider>支付方式明细</el-divider>
+        <el-table :data="shift.breakdown" stripe size="small">
+          <el-table-column label="支付方式" width="100">
+            <template #default="{ row }">{{ payLabel(row.method) }}</template>
+          </el-table-column>
+          <el-table-column prop="count" label="笔数" width="60" />
+          <el-table-column label="金额">
+            <template #default="{ row }">¥{{ fmt(row.amount) }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <el-empty v-else description="加载中..." />
+      <template #footer>
+        <el-button @click="shiftVisible = false">关闭</el-button>
+        <el-button type="primary" @click="printShift">打印</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 小票打印对话框 -->
+    <el-dialog v-model="receiptVisible" title="🧾 结账小票" width="360px" class="receipt-dialog">
+      <div v-if="receipt" class="receipt" id="receipt-print">
+        <div style="text-align:center;margin-bottom:12px">
+          <h3 style="margin:0">🏪 餐厅结账单</h3>
+          <p style="color:#999;margin:4px 0">桌号: {{ receipt.tableNumber }}</p>
+          <p style="color:#999;margin:0">{{ receipt.time }}</p>
+        </div>
+        <el-divider style="margin:8px 0" />
+        <table style="width:100%;font-size:14px;border-collapse:collapse">
+          <tr v-for="item in receipt.items" :key="item.id" style="border-bottom:1px dashed #ddd">
+            <td style="padding:4px 0">{{ item.dishName }}</td>
+            <td style="text-align:center;width:40px">×{{ item.quantity }}</td>
+            <td style="text-align:right;width:60px">¥{{ (item.price * item.quantity).toFixed(2) }}</td>
+          </tr>
+        </table>
+        <el-divider style="margin:8px 0" />
+        <div style="display:flex;justify-content:space-between;font-weight:bold">
+          <span>合计</span><span style="font-size:20px;color:#409eff">¥{{ Number(receipt.total).toFixed(2) }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          <span>支付方式</span><span>{{ receipt.payment }}</span>
+        </div>
+        <div v-if="receipt.discount > 0" style="display:flex;justify-content:space-between;margin-top:4px">
+          <span>优惠</span><span style="color:#f56c6c">-¥{{ Number(receipt.discount).toFixed(2) }}</span>
+        </div>
+        <p style="text-align:center;color:#999;margin-top:16px">谢谢惠顾！</p>
+      </div>
+      <template #footer>
+        <el-button @click="receiptVisible = false">关闭</el-button>
+        <el-button type="primary" @click="printReceipt">🖨️ 打印</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 退菜原因对话框 -->
+    <el-dialog v-model="returnDialogVisible" title="退菜原因" width="360px">
+      <el-radio-group v-model="returnReason">
+        <el-radio label="做错了" style="margin-bottom:12px;display:block" />
+        <el-radio label="上慢了" style="margin-bottom:12px;display:block" />
+        <el-radio label="客人不要了" style="margin-bottom:12px;display:block" />
+        <el-radio label="食材问题" style="margin-bottom:12px;display:block" />
+        <el-radio label="点多了" style="margin-bottom:12px;display:block" />
+        <el-radio label="其他" />
+      </el-radio-group>
+      <template #footer>
+        <el-button @click="returnDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmReturn">确认退菜</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 菜品详情对话框 -->
     <el-dialog v-model="detailVisible" title="菜品详情" width="400px">
       <div v-if="detailDish" class="dish-detail">
@@ -244,7 +375,20 @@
           <strong>备注：</strong>{{ detailDish.remark }}
         </p>
         <p v-else class="detail-remark" style="color: #ccc">暂无备注</p>
-        <div style="display: flex; justify-content: center; margin-top: 20px">
+        <el-input
+          v-model="dishRemark"
+          placeholder="备注：如 少辣、不要香菜..."
+          size="small"
+          style="margin-top: 12px"
+          clearable
+        />
+        <div class="quick-tags">
+          <el-tag v-for="tag in quickTags" :key="tag" :type="dishRemark === tag ? 'primary' : 'info'"
+            size="small" @click="dishRemark = dishRemark === tag ? '' : tag" style="cursor:pointer">
+            {{ tag }}
+          </el-tag>
+        </div>
+        <div style="display: flex; justify-content: center; margin-top: 12px">
           <el-button type="primary" @click="addFromDetail(detailDish)">加入订单</el-button>
         </div>
       </div>
@@ -264,6 +408,7 @@ import {
   getAllCategories,
   getAvailableDishes,
   getAllDishes,
+  toggleDish,
   createOrder,
   getOrderItemsByOrderId,
   addOrderItem,
@@ -271,12 +416,18 @@ import {
   deleteOrderItem,
   settleOrder,
   cancelOrder,
+  getShiftSummary,
   updateTableStatus,
   getInProgressOrders,
   getAllStores,
 } from '@/api'
 
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { checkUnfinished } from '@/api/kds'
+import { useVoice } from '@/composables/useVoice'
+const voice = useVoice()
+const voiceOn = ref(voice.isOn())
+const toggleVoice = () => { voiceOn.value = voice.toggle() }
 import wechatQrImg from '@/assets/wechat-qr.png'
 import alipayQrImg from '@/assets/alipay-qr.png'
 
@@ -288,12 +439,14 @@ const canCreateOrder = computed(() =>
   ['ADMIN', 'STORE_ADMIN', 'WAITER', 'CHEF'].includes(roleCode.value),
 )
 const canSettleOrder = computed(() => ['ADMIN', 'STORE_ADMIN', 'CASHIER'].includes(roleCode.value))
+const canShift = computed(() => ['ADMIN', 'STORE_ADMIN', 'CASHIER'].includes(roleCode.value))
 const canCancelOrder = computed(() =>
   ['ADMIN', 'STORE_ADMIN', 'WAITER'].includes(roleCode.value),
 )
 const canModifyOrder = computed(() =>
   ['ADMIN', 'STORE_ADMIN', 'WAITER', 'CHEF'].includes(roleCode.value),
 )
+const canToggleDish = computed(() => ['ADMIN', 'STORE_ADMIN'].includes(roleCode.value))
 
 const selectedStoreId = ref('all')
 const storeList = ref([])
@@ -332,6 +485,8 @@ const qrCodeUrl = computed(() => {
 
 const detailVisible = ref(false)
 const detailDish = ref(null)
+const dishRemark = ref('')
+const quickTags = ['少辣', '不要香菜', '不要葱', '打包', '加急', '少盐', '不要蒜', '多煮一会']
 
 const getTableLabel = (table) => {
   const statusText = table.status === 'free' ? t('table.free') : t('table.occupied')
@@ -411,6 +566,14 @@ onMounted(() => {
 
 // 核心修复：使用桌台本身的 storeId 加载订单
 const onTableChange = async (tableId) => {
+  // 点击已选中的桌台取消选择
+  if (selectedTableId.value === tableId) {
+    selectedTableId.value = null
+    currentOrder.value = null
+    orderItems.value = []
+    return
+  }
+  selectedTableId.value = tableId
   currentOrder.value = null
   orderItems.value = []
   if (!tableId) return
@@ -468,12 +631,31 @@ const handleOpenOrder = async () => {
 
 const openDetail = (dish) => {
   detailDish.value = dish
+  dishRemark.value = ''
   detailVisible.value = true
 }
 
 const addFromDetail = async (dish) => {
   if (!canModifyOrder.value) return ElMessage.warning('没有点菜权限')
   if (!currentOrder.value?.id) return ElMessage.warning('请先开单')
+
+  // 套餐：拆成多个菜品
+  if (dish.isCombo === 1 && dish.comboDishes) {
+    const ids = dish.comboDishes.split(',').map(Number).filter(Boolean)
+    const members = ids.map(id => dishes.value.find(d => d.id === id)).filter(Boolean)
+    if (members.length === 0) return ElMessage.warning('套餐配置错误')
+    for (const md of members) {
+      await singleAddItem(md)
+    }
+    detailVisible.value = false
+    return ElMessage.success(`已添加套餐「${dish.name}」(${members.length}道)`)
+  }
+  await singleAddItem(dish)
+  ElMessage.success(`已添加 ${dish.name}`)
+  detailVisible.value = false
+}
+
+const singleAddItem = async (dish) => {
   const exist = orderItems.value.find((i) => i.dishId === dish.id)
   if (exist) {
     exist.quantity++
@@ -491,11 +673,23 @@ const addFromDetail = async (dish) => {
       dishName: dish.name,
       price: dish.price,
       quantity: 1,
+      remark: dishRemark.value || undefined,
     })
     await refreshItems()
   }
-  ElMessage.success(`已添加 ${dish.name}`)
-  detailVisible.value = false
+}
+
+const editRemark = async (row, remark) => {
+  row.remark = remark === row.remark ? '' : remark
+  row._remarkTemp = ''
+  await updateOrderItem(row.id, {
+    quantity: row.quantity,
+    price: row.price,
+    dishId: row.dishId,
+    dishName: row.dishName,
+    orderId: row.orderId,
+    remark: row.remark || null,
+  })
 }
 
 const changeQty = async (row) => {
@@ -509,9 +703,83 @@ const changeQty = async (row) => {
   })
 }
 
+const toggleSoldOut = async (dish) => {
+  try {
+    await toggleDish(dish.id)
+    dish.isAvailable = dish.isAvailable === 1 ? 0 : 1
+  } catch (_) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const returnReason = ref('')
+const returnItem = ref(null)
+const returnDialogVisible = ref(false)
+
+// 小票
+const receiptVisible = ref(false)
+const receipt = ref(null)
+
+// 交接班
+const shiftVisible = ref(false)
+const shift = ref(null)
+
+const openShift = async () => {
+  shiftVisible.value = true
+  shift.value = null
+  try {
+    const res = await getShiftSummary()
+    shift.value = res.data
+  } catch (_) {
+    ElMessage.error('加载失败')
+    shiftVisible.value = false
+  }
+}
+
+const diff = computed(() => {
+  if (!shift.value) return 0
+  return (Number(shift.value.totalAmount) || 0) - (Number(shift.value.systemTotal) || 0)
+})
+
+const fmt = (v) => (Number(v) || 0).toFixed(2)
+
+const payLabel = (m) => {
+  const map = { CASH: '现金', WECHAT: '微信', ALIPAY: '支付宝', CARD: '银行卡' }
+  return map[m] || m
+}
+
+const printShift = () => window.print()
+const printReceipt = () => {
+  const el = document.getElementById('receipt-print')
+  if (!el) return
+  const w = window.open('', '_blank', 'width=400,height=600')
+  w.document.write(`<html><head><title>小票</title><style>
+    body{font-family:monospace;padding:20px;max-width:320px;margin:auto}
+    h3{margin:0}table{width:100%;border-collapse:collapse}
+    td{padding:4px 0}@media print{@page{margin:0}}
+  </style></head><body>${el.innerHTML}</body></html>`)
+  w.document.close()
+  setTimeout(() => w.print(), 300)
+}
+
 const removeItem = async (row) => {
-  await deleteOrderItem(row.id)
+  try {
+    await ElMessageBox.confirm(
+      `确定退菜「${row.dishName}」？`,
+      '退菜确认',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch { return }
+  returnItem.value = row
+  returnReason.value = '其他'
+  returnDialogVisible.value = true
+}
+
+const confirmReturn = async () => {
+  const row = returnItem.value
+  await deleteOrderItem(row.id, returnReason.value || '未指定')
   ElMessage.success('已退菜')
+  returnDialogVisible.value = false
   refreshItems()
 }
 
@@ -621,6 +889,23 @@ const handleSettle = async () => {
     return ElMessage.warning('订单没有菜品，无法结账')
   }
 
+  // 检查厨房是否有未完成的菜品
+  try {
+    const checkRes = await checkUnfinished(currentOrder.value.id)
+    if (checkRes?.data?.hasUnfinished) {
+      const items = checkRes.data.items || []
+      const dishNames = items.map(i => `「${i.dishName}」(${i.kitchenStatus === 'WAITING' ? '待做' : i.kitchenStatus === 'COOKING' ? '制作中' : '已完成'})`).join('、')
+      await ElMessageBox.confirm(
+        `以下菜品厨房尚未出餐：\n\n${dishNames}\n\n确定要继续结账吗？结账后厨房看板将不再显示这些菜品。`,
+        '厨房菜品未完成',
+        { confirmButtonText: '继续结账', cancelButtonText: '取消', type: 'warning', dangerouslyUseHTMLString: false }
+      )
+    }
+  } catch (e) {
+    // 用户取消或检查失败（网络问题不阻塞结账）
+    if (e === 'cancel' || e === 'close') return
+  }
+
   try {
     if (!user.userId) await user.fetchCurrentUser()
   } catch {
@@ -660,6 +945,18 @@ const handleSettle = async () => {
       return
     }
     ElMessage.success('结账成功')
+    // 语音播报
+    voice.speak(`${selectedTable?.name || currentOrder.value.tableNumber || '某桌'}已结账`)
+    // 显示小票
+    receipt.value = {
+      tableNumber: selectedTable?.name || currentOrder.value.tableNumber || '-',
+      time: new Date().toLocaleString('zh-CN'),
+      items: [...orderItems.value],
+      total: finalPay,
+      payment: payLabel(paymentMethod.value),
+      discount: Number(discountAmount.value) || 0,
+    }
+    receiptVisible.value = true
     if (member.value && memberCheckout.value?.expectedPoints > 0) {
       ElMessage.info(`会员获得 ${memberCheckout.value.expectedPoints} 积分`)
     }
@@ -779,6 +1076,45 @@ const handleCancel = async () => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
+/* 桌台平面图 */
+.table-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.table-block {
+  min-width: 64px;
+  height: 56px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+.table-block.free { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+.table-block.occupied { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
+.table-block.selected { border-color: #409eff !important; box-shadow: 0 0 0 3px rgba(64,158,255,0.3); transform: scale(1.05); }
+.table-block .tbl-num { font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.table-block .tbl-st { font-size: 9px; margin-top: 2px; white-space: nowrap; }
+
+.dish-card.soldout {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.dish-card.soldout .soldout-badge {
+  position: absolute; top: 4px; right: 4px;
+  background: #f56c6c; color: #fff; font-size: 11px;
+  padding: 1px 6px; border-radius: 4px;
+}
+.combo-badge {
+  position: absolute; top: 4px; left: 4px;
+  background: #e040fb; color: #fff; font-size: 11px;
+  padding: 1px 6px; border-radius: 4px;
+}
 .dish-card:hover {
   border-color: #409eff;
   box-shadow: 0 2px 8px rgba(64, 158, 255, 0.12);
@@ -877,6 +1213,8 @@ const handleCancel = async () => {
   color: #606266;
   margin: 6px 0;
 }
+.quick-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.quick-tags .el-tag { cursor: pointer !important; user-select: none; }
 .detail-remark {
   font-size: 14px;
   color: #e6a23c;
@@ -890,7 +1228,37 @@ const handleCancel = async () => {
   .pos-left,
   .pos-right {
     width: 100%;
-    padding: 12px;
+    padding: 8px;
+  }
+  .dish-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px;
+  }
+  .dish-card {
+    padding: 8px;
+  }
+  .dish-img {
+    height: 60px;
+  }
+  .dish-img .el-image {
+    height: 60px !important;
+  }
+  .dish-name {
+    font-size: 12px;
+  }
+  .dish-price {
+    font-size: 11px;
+  }
+  .table-block {
+    min-width: 44px;
+    height: 44px;
+    padding: 2px 3px;
+  }
+  .table-block .tbl-num {
+    font-size: 12px;
+  }
+  .table-block .tbl-st {
+    font-size: 8px;
   }
 }
 </style>

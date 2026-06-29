@@ -19,4 +19,7 @@ public interface OrderItemService extends IService<OrderItem> {
      * 向订单追加菜品
      */
     boolean addDishToOrder(OrderItem orderItem);
+
+    /** KDS: 查询门店内所有未出餐的菜品 */
+    List<OrderItem> getInProgressItemsByStore(Long storeId);
 }

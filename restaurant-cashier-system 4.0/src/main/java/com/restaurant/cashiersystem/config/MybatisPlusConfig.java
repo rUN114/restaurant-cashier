@@ -2,6 +2,7 @@ package com.restaurant.cashiersystem.config;
 
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,8 @@ public class MybatisPlusConfig {
         paginationInterceptor.setOverflow(false);
         paginationInterceptor.setMaxLimit(100L);
         interceptor.addInnerInterceptor(paginationInterceptor);
+        // 乐观锁拦截器：@Version 字段自动版本号校验与自增
+        interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
         return interceptor;
     }
 }

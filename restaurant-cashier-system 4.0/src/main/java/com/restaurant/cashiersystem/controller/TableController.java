@@ -73,7 +73,7 @@ public class TableController {
      * @return 无
      */
     @PutMapping("/status/{tableId}")
-    @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store', 'waiter')")
+    @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store', 'waiter', 'cashier')")
     public Result<Void> updateTableStatus(@PathVariable Long tableId, @RequestParam String status) {
         if (!"free".equals(status) && !"occupied".equals(status)) {
             return Result.error("无效状态，仅支持 free 或 occupied");

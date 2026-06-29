@@ -28,8 +28,10 @@ public class OrderItemController {
     @Autowired private DishRecipeService dishRecipeService;
     @Autowired private MaterialInventoryService materialInventoryService;
     @Autowired private MaterialService materialService;
+    @Autowired private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     @GetMapping("/order/{orderId}")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store','cashier','waiter','chef')")
     public Result<List<OrderItem>> getItemsByOrderId(@PathVariable Long orderId) {
         return Result.success(orderItemService.getItemsByOrderId(orderId));
     }
@@ -93,13 +95,53 @@ public class OrderItemController {
     public Result<Void> updateOrderItem(@PathVariable Long id, @RequestBody OrderItem orderItem) {
         orderItem.setId(id);
         orderItemService.updateById(orderItem);
+        // 通知 KDS（备注修改等）
+        messagingTemplate.convertAndSend("/topic/kitchen",
+                (Object) java.util.Map.of("event", "item_updated", "data", java.util.Map.of("itemId", id)));
         return Result.success();
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store', 'waiter')")
-    public Result<Void> deleteOrderItem(@PathVariable Long id) {
+    public Result<Void> deleteOrderItem(@PathVariable Long id,
+                                         @RequestParam(required = false) String reason) {
+        OrderItem item = orderItemService.getById(id);
+        if (item != null && reason != null && !reason.isEmpty()) {
+            item.setReturnReason(reason);
+            orderItemService.updateById(item);
+        }
         orderItemService.removeById(id);
+        // 通知 KDS：菜品已退
+        messagingTemplate.convertAndSend("/topic/kitchen",
+                (Object) java.util.Map.of("event", "item_removed", "data", java.util.Map.of("itemId", id)));
+        messagingTemplate.convertAndSend("/topic/waiter",
+                (Object) java.util.Map.of("event", "item_removed", "data", java.util.Map.of("itemId", id)));
         return Result.success();
+    }
+
+    /** 退菜原因统计 */
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @GetMapping("/return-reasons")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
+    public Result<List<java.util.Map<String, Object>>> returnReasons(@RequestParam(required = false) Long storeId) {
+        String sql = "SELECT return_reason, COUNT(*) AS cnt FROM order_items " +
+                     "WHERE deleted_at IS NOT NULL AND return_reason IS NOT NULL";
+        if (storeId != null) sql += " AND store_id = " + storeId;
+        sql += " GROUP BY return_reason ORDER BY cnt DESC";
+
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            counts.put(rs.getString("return_reason"), rs.getInt("cnt"));
+        });
+
+        List<java.util.Map<String, Object>> result = new ArrayList<>();
+        for (var entry : counts.entrySet()) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("reason", entry.getKey());
+            m.put("count", entry.getValue());
+            result.add(m);
+        }
+        return Result.success(result);
     }
 }

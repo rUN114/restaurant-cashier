@@ -27,7 +27,8 @@ export default defineConfig({
     },
   },
   server: {
-    // 关闭错误弹出窗口
+    host: '0.0.0.0',  // 允许手机/局域网访问
+    port: 5173,
     hmr: {
       overlay: false
     },

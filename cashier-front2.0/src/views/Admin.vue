@@ -25,6 +25,7 @@ const menuItems = computed(() => [
   },
   // 营业统计：管理层日常核心，上移
   { index: '/admin/report', icon: 'TrendCharts', label: t('menu.report') },
+  { index: '/admin/bigscreen', icon: 'Monitor', label: '实时大屏' },
 
   // 第二梯队：组织架构管理
   {

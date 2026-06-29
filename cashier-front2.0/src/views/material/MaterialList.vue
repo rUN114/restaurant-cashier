@@ -42,7 +42,20 @@
         <el-table-column prop="id" :label="$t('table.id')" width="60" />
         <el-table-column prop="storeId" :label="$t('table.store')" width="80" />
         <el-table-column prop="name" label="原料名称" width="150" />
-        <el-table-column prop="unit" label="单位" width="80" />
+        <el-table-column prop="unit" label="库存单位" width="80" />
+        <el-table-column prop="purchaseUnit" label="采购单位" width="80">
+          <template #default="{ row }">
+            {{ row.purchaseUnit || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="换算率" width="120">
+          <template #default="{ row }">
+            <span v-if="row.unitRate && row.unitRate !== 1">
+              1{{ row.purchaseUnit || '采购单位' }} = {{ row.unitRate }}{{ row.unit }}
+            </span>
+            <span v-else style="color:#999">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="warningStock" label="预警库存" width="100" />
         <el-table-column prop="createdAt" label="创建时间" width="180" />
         <el-table-column prop="updatedAt" label="更新时间" width="180" />
@@ -70,8 +83,17 @@
         <el-form-item label="原料名称" required>
           <el-input v-model="form.name" placeholder="请输入原料名称" />
         </el-form-item>
-        <el-form-item label="单位" required>
-          <el-input v-model="form.unit" placeholder="如：克、千克、个、升" />
+        <el-form-item label="库存单位" required>
+          <el-input v-model="form.unit" placeholder="配方/库存用：g、ml、个" />
+        </el-form-item>
+        <el-form-item label="采购单位">
+          <el-input v-model="form.purchaseUnit" placeholder="如：斤、kg、瓶、箱（留空则同库存单位）" />
+        </el-form-item>
+        <el-form-item label="换算率">
+          <el-input v-model.number="form.unitRate" type="number" step="0.001" placeholder="1采购单位=多少库存单位（如1斤=500g填500）" />
+          <span style="font-size:12px;color:#999">
+            1<span v-if="form.purchaseUnit">{{ form.purchaseUnit }}</span> = <b>{{ form.unitRate || 1 }}</b><span v-if="form.unit">{{ form.unit }}</span>
+          </span>
         </el-form-item>
         <el-form-item label="预警库存" required>
           <el-input
@@ -126,6 +148,8 @@ const form = ref({
   storeId: null,
   name: '',
   unit: '',
+  purchaseUnit: '',
+  unitRate: 1,
   warningStock: null,
 })
 
@@ -156,6 +180,8 @@ const handleAdd = () => {
     storeId: selectedStoreId.value,
     name: '',
     unit: '',
+    purchaseUnit: '',
+    unitRate: 1,
     warningStock: null,
   }
   dialogVisible.value = true

@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,7 +31,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
+import java.util.*;
 
 @Tag(name = "订单管理", description = "开台、结算、查询订单及营业额")
 @RestController
@@ -94,27 +95,26 @@ public class OrderController {
         storeService.checkStoreActive(order.getStoreId());
 
         // ---- 桌台校验：Redis 分布式锁 + DB 双重防并发开单 ----
+        String lockKey = null;
+        boolean lockAcquired = false;
         if (order.getTableId() != null) {
-            String lockKey = TABLE_LOCK_PREFIX + order.getTableId();
+            lockKey = TABLE_LOCK_PREFIX + order.getTableId();
             try {
                 Boolean locked = stringRedisTemplate.opsForValue()
                         .setIfAbsent(lockKey, "1", TABLE_LOCK_TTL);
                 if (Boolean.FALSE.equals(locked)) {
                     return Result.error("该桌正在开单中，请稍后再试");
                 }
+                lockAcquired = true;
             } catch (Exception e) {
                 log.warn("Redis 不可用，跳过开单锁: tableId={}", order.getTableId(), e);
             }
-            try {
-                LambdaQueryWrapper<Order> checkWrapper = new LambdaQueryWrapper<>();
-                checkWrapper.eq(Order::getTableId, order.getTableId())
-                            .eq(Order::getStatus, "in_progress");
-                long count = orderService.count(checkWrapper);
-                if (count > 0) {
-                    return Result.error("该桌尚有未完成订单，无法重复开单");
-                }
-            } finally {
-                try { stringRedisTemplate.delete(lockKey); } catch (Exception ignored) {}
+            LambdaQueryWrapper<Order> checkWrapper = new LambdaQueryWrapper<>();
+            checkWrapper.eq(Order::getTableId, order.getTableId())
+                        .eq(Order::getStatus, "in_progress");
+            long count = orderService.count(checkWrapper);
+            if (count > 0) {
+                return Result.error("该桌尚有未完成订单，无法重复开单");
             }
         }
 
@@ -156,6 +156,11 @@ public class OrderController {
         opLog.setDetail("开单，桌号：" + (table != null ? table.getTableNumber() : "无"));
         opLog.setCreatedAt(LocalDateTime.now());
         asyncLogService.saveOperationLog(opLog);
+
+        // 开单完成后释放桌台锁（防 TOCTOU 竞态）
+        if (lockAcquired) {
+            try { stringRedisTemplate.delete(lockKey); } catch (Exception ignored) {}
+        }
 
         return Result.success(order.getId());
     }
@@ -205,6 +210,11 @@ public class OrderController {
             return Result.error("无法获取操作员信息");
         }
         orderService.cancelOrder(orderId, operatorId);
+        // 通知 KDS 厨师：订单已取消
+        messagingTemplate.convertAndSend("/topic/kitchen",
+                (Object) java.util.Map.of("event", "order_cancelled", "data", java.util.Map.of("orderId", orderId)));
+        messagingTemplate.convertAndSend("/topic/waiter",
+                (Object) java.util.Map.of("event", "order_cancelled", "data", java.util.Map.of("orderId", orderId)));
         return Result.success();
     }
 
@@ -250,6 +260,59 @@ public class OrderController {
     public Result<BigDecimal> getMonthTurnover(@PathVariable Long storeId) {
         return Result.success(orderService.getMonthTurnover(storeId));
     }
+
+    /**
+     * 交接班汇总：今日该收银员结算的订单数/金额 + 按支付方式分组
+     */
+    @GetMapping("/shift-summary")
+    @PreAuthorize("hasAnyAuthority('admin_global','admin_store','cashier')")
+    public Result<Map<String, Object>> shiftSummary(HttpServletRequest request) {
+        Long cashierId = getUserIdFromToken(request);
+        Long storeId = getStoreIdFromToken(request);
+        if ("admin_global".equals(getRoleFromToken(request))) storeId = null;
+
+        // 今日该收银员结算的订单
+        String baseSql = "SELECT o.payment_method, COUNT(*) AS cnt, COALESCE(SUM(o.final_amount),0) AS amt " +
+                "FROM orders o WHERE o.status = 'settled' AND o.settled_by = ? " +
+                "AND DATE(o.settled_at) = CURDATE()";
+        if (storeId != null) baseSql += " AND o.store_id = " + storeId;
+        baseSql += " GROUP BY o.payment_method";
+
+        List<Map<String, Object>> breakdown = jdbcTemplate.query(baseSql,
+                (rs, rowNum) -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("method", rs.getString("payment_method"));
+                    m.put("count", rs.getInt("cnt"));
+                    m.put("amount", rs.getBigDecimal("amt"));
+                    return m;
+                }, cashierId);
+
+        // 计算合计
+        int totalOrders = 0;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        for (Map<String, Object> item : breakdown) {
+            totalOrders += ((Number) item.get("count")).intValue();
+            totalAmount = totalAmount.add((BigDecimal) item.get("amount"));
+        }
+
+        // 系统今日总营业额（该门店所有收银员合计，用于对账）
+        String sysSql = "SELECT COALESCE(SUM(o.final_amount),0) AS amt FROM orders o " +
+                "WHERE o.status = 'settled' AND DATE(o.settled_at) = CURDATE()";
+        if (storeId != null) sysSql += " AND o.store_id = " + storeId;
+        BigDecimal systemTotal = jdbcTemplate.queryForObject(sysSql, BigDecimal.class);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("cashierId", cashierId);
+        result.put("storeId", storeId);
+        result.put("totalOrders", totalOrders);
+        result.put("totalAmount", totalAmount);
+        result.put("systemTotal", systemTotal != null ? systemTotal : BigDecimal.ZERO);
+        result.put("breakdown", breakdown);
+        return Result.success(result);
+    }
+
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Autowired private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     /**
      * 分页查询订单

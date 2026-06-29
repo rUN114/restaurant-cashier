@@ -198,12 +198,18 @@ public class DishController {
     }
 
     /**
-     * 查询所有菜品（仅管理员）
+     * 一键沽清/重新上架：切换菜品可售状态
      */
-    @GetMapping("/all")
-    @PreAuthorize("hasAuthority('admin_global')")
-    public Result<List<Dish>> getAllDishes() {
-        List<Dish> list = dishService.list();
-        return Result.success(list);
+    @PutMapping("/toggle/{id}")
+    @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
+    @CacheEvict(value = "dishes", allEntries = true)
+    public Result<Void> toggleAvailable(@PathVariable Long id) {
+        Dish dish = dishService.getById(id);
+        if (dish == null) return Result.error("菜品不存在");
+        dish.setIsAvailable(dish.getIsAvailable() == 1 ? 0 : 1);
+        dishService.updateById(dish);
+        String status = dish.getIsAvailable() == 1 ? "上架" : "沽清";
+        log.info("菜品 {} {}：{}", id, status, dish.getName());
+        return Result.success();
     }
 }

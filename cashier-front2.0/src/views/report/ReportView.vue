@@ -3,6 +3,7 @@
     <el-card>
       <div class="header">
         <h3>{{ $t('pages.reportTitle') }}</h3>
+        <el-button type="success" size="small" @click="exportReport">📥 导出</el-button>
         <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
           <el-date-picker
             v-model="selectedMonth"
@@ -95,6 +96,60 @@
         </el-table>
       </div>
 
+      <!-- 员工绩效排行 -->
+      <el-row :gutter="20" style="margin-top: 20px;">
+        <el-col :span="24">
+          <div class="chart-card">
+            <h4 style="margin-bottom:12px">🏆 今日收银排行</h4>
+            <el-table :data="cashierRankData" stripe size="small" v-loading="rankLoading">
+              <el-table-column type="index" label="排名" width="60" />
+              <el-table-column prop="name" label="收银员" width="120" />
+              <el-table-column prop="orders" label="订单数" width="80" sortable />
+              <el-table-column label="营业额" width="120" sortable sort-by="amount">
+                <template #default="{ row }">¥{{ Number(row.amount || 0).toFixed(2) }}</template>
+              </el-table-column>
+              <el-table-column prop="returns" label="退菜" width="80" sortable />
+              <el-table-column label="退菜率" width="100">
+                <template #default="{ row }">
+                  {{ row.orders > 0 ? (row.returns / row.orders * 100).toFixed(1) + '%' : '0%' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="评价" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.returns === 0 ? 'success' : row.returns <= 2 ? 'warning' : 'danger'" size="small">
+                    {{ row.returns === 0 ? '🌟 完美' : row.returns <= 2 ? '👍 良好' : '需改进' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-col>
+      </el-row>
+
+      <!-- 退菜原因统计 -->
+      <el-row :gutter="20" style="margin-top: 20px;">
+        <el-col :xs="24" :sm="12">
+          <div class="chart-card">
+            <h4 style="margin-bottom:12px">退菜原因分析</h4>
+            <div id="chart-return-reasons" style="width: 100%; height: 320px;"></div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :sm="12">
+          <div class="chart-card">
+            <h4 style="margin-bottom:12px">退菜明细</h4>
+            <el-table :data="returnReasonData" stripe size="small" style="width:100%">
+              <el-table-column prop="reason" label="原因" />
+              <el-table-column prop="count" label="次数" width="80" sortable />
+              <el-table-column label="占比" width="100">
+                <template #default="{ row }">
+                  {{ percent(row.count, totalReturns) }}%
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-col>
+      </el-row>
+
       <el-row v-if="isAdmin" :gutter="20" style="margin-top: 20px;">
         <el-col :span="24">
           <div class="chart-card">
@@ -115,7 +170,9 @@ const { t } = useI18n()
 import { getAllStores } from '@/api'
 
 import request from '@/utils/request'
+import { getReturnReasons, getCashierRanking } from '@/api/order'
 import { ElMessage } from 'element-plus'
+import { exportExcel } from '@/composables/useExcel'
 
 const user = useUserStore()
 const isAdmin = computed(() => user.roleCode === 'ADMIN')
@@ -136,12 +193,19 @@ const storeTurnover = ref(0)
 const todayTurnover = ref(0)
 const monthTurnover = ref(0)
 const grossProfitData = ref([])
+const returnReasonData = ref([])
+const totalReturns = ref(0)
+const cashierRankData = ref([])
+const rankLoading = ref(false)
 const loading = ref(false)
+
+const percent = (v, total) => total > 0 ? (v / total * 100).toFixed(1) : '0.0'
 
 // 图表实例
 let chartDayTrend = null
 let chartPaymentType = null
 let chartStoreTurnover = null
+let chartReturnReasons = null
 
 // 加载门店
 const loadStores = async () => {
@@ -193,6 +257,18 @@ const loadAll = async () => {
     } finally {
       loading.value = false
     }
+
+    // 退菜原因统计
+    try {
+      const crRes = await getCashierRanking(storeParam || null)
+        cashierRankData.value = crRes.data || []
+      } catch (e) { cashierRankData.value = [] }
+      try {
+        const rrRes = await getReturnReasons(storeParam || null)
+      returnReasonData.value = rrRes.data || []
+      totalReturns.value = returnReasonData.value.reduce((s, i) => s + i.count, 0)
+      renderReturnReasonsChart()
+    } catch (e) { /* ignore */ }
 
     // 管理员看门店排行
     if (isAdmin.value) {
@@ -270,10 +346,45 @@ const renderStoreTurnoverChart = async (data) => {
   })
 }
 
+const renderReturnReasonsChart = async () => {
+  if (returnReasonData.value.length === 0) return
+  const echarts = await getEcharts()
+  if (!chartReturnReasons) {
+    chartReturnReasons = echarts.init(document.getElementById('chart-return-reasons'))
+  }
+  chartReturnReasons.setOption({
+    tooltip: { trigger: 'item' },
+    legend: { orient: 'vertical', right: 10, top: 'center' },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['40%', '50%'],
+      data: returnReasonData.value.map(d => ({ name: d.reason, value: d.count })),
+      label: { formatter: '{b}\n{d}%' },
+      emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.5)' } }
+    }]
+  })
+}
+
 const onResize = () => {
   chartDayTrend?.resize()
   chartPaymentType?.resize()
   chartStoreTurnover?.resize()
+  chartReturnReasons?.resize()
+}
+
+const exportReport = () => {
+  // 导出毛利报表
+  const cols = [
+    { label: '菜品', key: 'name' },
+    { label: '销量', key: 'quantity' },
+    { label: '销售额', key: 'sales' },
+    { label: '原料成本', key: 'cost' },
+    { label: '毛利', key: 'profit' },
+    { label: '毛利率', key: 'margin' },
+  ]
+  const rows = grossProfitData.value.map(r => ({ ...r, margin: r.margin + '%' }))
+  exportExcel(rows, cols, `毛利报表_${selectedMonth.value}`)
 }
 
 onMounted(async () => {

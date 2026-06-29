@@ -18,7 +18,10 @@ export const getOrdersPage = (params) => request.get('/orders/page', { params })
 export const getOrderItemsByOrderId = (orderId) => request.get(`/order-items/order/${orderId}`)
 export const addOrderItem = (data) => request.post('/order-items', data)
 export const updateOrderItem = (id, data) => request.put(`/order-items/${id}`, data)
-export const deleteOrderItem = (id) => request.delete(`/order-items/${id}`)
+export const deleteOrderItem = (id, reason) => request.delete(`/order-items/${id}`, { params: { reason } })
+export const getReturnReasons = (storeId) => request.get('/order-items/return-reasons', { params: { storeId } })
+export const getShiftSummary = () => request.get('/orders/shift-summary')
+export const getCashierRanking = (storeId) => request.get('/statistics/cashier-ranking', { params: { storeId } })
 
 // ------ 营业额统计 ------
 export const getTodayTurnover = (storeId) =>

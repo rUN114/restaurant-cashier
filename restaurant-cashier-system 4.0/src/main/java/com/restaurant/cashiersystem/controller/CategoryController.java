@@ -72,6 +72,11 @@ public class CategoryController {
     /**
      * 查询所有分类（仅管理员）
      */
+
+
+
+
+
     @GetMapping("/all")
     @PreAuthorize("hasAuthority('admin_global')")
     public Result<List<Category>> getAllCategories() {

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { useCookies } from '@vueuse/integrations/useCookies'
 import { getCurrentUser } from '@/api'
 
+const ROLE_MAP = { admin_global: 'ADMIN', admin_store: 'STORE_ADMIN', cashier: 'CASHIER', waiter: 'WAITER', chef: 'CHEF', purchaser: 'PURCHASER' }
+
 const cookies = useCookies(['cashier-token', 'cashier-role', 'cashier-store-id'])
 
 export const useUserStore = defineStore('user', {
@@ -44,10 +46,10 @@ export const useUserStore = defineStore('user', {
           this.username = d.username
           this.realName = d.realName
           this.storeId = d.storeId
-          this.role = d.roleCode
-          this.roleCode = d.roleCode
+          this.role = ROLE_MAP[d.roleCode] || d.roleCode
+          this.roleCode = this.role
           // 同步 cookie
-          cookies.set('cashier-role', d.roleCode)
+          cookies.set('cashier-role', this.role)
           if (d.storeId) cookies.set('cashier-store-id', d.storeId)
         } else {
           this.logout()

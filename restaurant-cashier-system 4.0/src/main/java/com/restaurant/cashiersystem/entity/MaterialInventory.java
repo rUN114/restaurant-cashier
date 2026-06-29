@@ -15,6 +15,9 @@ public class MaterialInventory {
     private BigDecimal currentStock;
     private BigDecimal costPrice;
 
+    @Version
+    private Integer version;
+
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }

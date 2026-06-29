@@ -18,3 +18,5 @@ export const getInventoryByStore = (storeId) => request.get(`/inventory/store/${
 export const adjustInventory = (data) => request.post('/inventory/adjust', data)
 export const getLowStock = (storeId) => request.get('/inventory/low-stock', { params: { storeId } })
 export const getStockRecords = (storeId) => request.get('/inventory/records', { params: { storeId } })
+export const getPurchaseHistory = (storeId, materialId) => request.get('/inventory/purchase-history', { params: { storeId, materialId } })
+export const backfillCostPrice = () => request.post('/inventory/backfill-cost-price')

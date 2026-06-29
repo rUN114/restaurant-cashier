@@ -16,6 +16,7 @@ const menuItems = computed(() => [
   // 核心工作：配方管理 → 原料消耗（因果关系）
   { index: '/chef/recipes', icon: 'KnifeFork', label: t('menu.recipeManage') },
   { index: '/chef/consumptions', icon: 'TrendCharts', label: t('menu.consumptionManage') },
+  { index: '/chef/kds', icon: 'KnifeFork', label: '后厨看板' },
   { index: '/chef/logs/changelog', icon: 'Clock', label: t('menu.changelog') },
 ])
 </script>

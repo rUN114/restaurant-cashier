@@ -1,7 +1,10 @@
 <template>
   <div class="page-container">
     <el-card>
-      <h3>{{ $t('pages.orderTitle') }}</h3>
+      <div class="page-header">
+        <h3>{{ $t('pages.orderTitle') }}</h3>
+        <el-button type="success" size="small" @click="exportOrders">📥 导出</el-button>
+      </div>
       <el-table :data="data" border stripe v-loading="loading">
         <el-table-column prop="orderNo" label="订单编号" width="180" />
         <el-table-column prop="tableNumber" :label="$t('table.tableNumber')" width="80" />
@@ -81,6 +84,7 @@ import { useUserStore } from '@/stores/user'
 import { getOrderById, getOrderItemsByOrderId, getOrdersPage, reverseSettleOrder } from '@/api'
 import { usePagination } from '@/composables/usePagination'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { exportExcel } from '@/composables/useExcel'
 
 const user = useUserStore()
 const storeId = computed(() => user.storeId)
@@ -143,6 +147,23 @@ const handleReverseSettle = async (orderId) => {
   }
 }
 
+const exportOrders = () => {
+  const cols = [
+    { label: '订单编号', key: 'orderNo' },
+    { label: '桌号', key: 'tableNumber' },
+    { label: '状态', key: 'status' },
+    { label: '创建时间', key: 'createdAt' },
+  ]
+  const rows = data.value.map(r => ({
+    ...r,
+    status: r.status === 'settled' ? '已结账' : r.status === 'cancelled' ? '已取消' : '进行中',
+  }))
+  exportExcel(rows, cols, `订单列表_${new Date().toISOString().slice(0,10)}`)
+}
+
 onMounted(load)
 </script>
+<style scoped>
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+</style>
 
