@@ -22,7 +22,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MyBatisSystemException.class)
     public Result<Void> handleOptimisticLock(MyBatisSystemException e) {
         Throwable cause = e.getCause();
-        if (cause != null && cause.getClass().getName().contains("OptimisticLock")) {
+        if (cause != null && (cause.getClass().getName().contains("OptimisticLock")
+                           || (cause.getMessage() != null && cause.getMessage().contains("version")))) {
             log.warn("乐观锁冲突: {}", cause.getMessage());
             return Result.error("数据已被他人修改，请刷新后重试");
         }
