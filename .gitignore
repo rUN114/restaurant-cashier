@@ -30,3 +30,7 @@ openapi.json
 .DS_Store
 Thumbs.db
 deploy.tar.gz
+
+# AI Key (不要提交)
+application-secret.yml
+

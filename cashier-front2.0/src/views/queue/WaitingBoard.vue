@@ -1,5 +1,6 @@
 <template>
   <div class="queue-board" @click="toggleFull">
+    <div v-if="isFS" class="exit-btn" @click.stop="exitFull" title="退出全屏 (ESC)">✕ 退出全屏</div>
     <header class="qb-head">
       <span class="qb-logo">🏪</span>
       <span>等位大屏</span>
@@ -41,16 +42,29 @@
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
+import { useFullscreen } from '@/composables/useFullscreen'
 
+const { isFullscreen } = useFullscreen()
 const user = useUserStore()
 const now = ref('')
 const data = reactive({ waiting: [], freeTables: 0, occupiedTables: 0, estimatedWait: 0 })
 const called = ref([])
 let timer = null
 
+const isFS = ref(false)
 const toggleFull = () => {
   if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{})
 }
+const exitFull = () => {
+  if (document.fullscreenElement) document.exitFullscreen()
+}
+onMounted(() => {
+  document.addEventListener('fullscreenchange', () => {
+    isFS.value = !!document.fullscreenElement
+    isFullscreen.value = isFS.value
+  })
+})
+onBeforeUnmount(() => { isFullscreen.value = false; if (document.fullscreenElement) document.exitFullscreen() })
 
 const load = async () => {
   try {
@@ -81,6 +95,12 @@ onBeforeUnmount(() => clearInterval(timer))
 </script>
 
 <style scoped>
+.exit-btn {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  background: rgba(255,0,0,0.85); color: #fff; padding: 12px 24px;
+  border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;
+}
+
 .queue-board {
   background: #0a1628;
   min-height: 100vh;

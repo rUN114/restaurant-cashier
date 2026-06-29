@@ -1,6 +1,6 @@
 <template>
   <el-container class="layout-container">
-    <el-aside :class="['layout-sidebar', { open: sidebarOpen }]">
+    <el-aside v-show="!isFullscreen" :class="['layout-sidebar', { open: sidebarOpen }]">
       <div class="logo">{{ logoEmoji }} {{ roleLabel }}</div>
       <el-menu
         router
@@ -47,7 +47,7 @@
       </div>
     </el-aside>
     <el-container>
-      <el-header class="header-bar">
+      <el-header v-show="!isFullscreen" class="header-bar">
         <el-button link class="hamburger" @click="sidebarOpen = !sidebarOpen">☰</el-button>
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: homePath }">{{ roleLabel }}</el-breadcrumb-item>
@@ -81,7 +81,9 @@ import { ElMessageBox } from 'element-plus'
 import LangSwitcher from '@/components/LangSwitcher.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import { useTheme } from '@/composables/useTheme'
+import { useFullscreen } from '@/composables/useFullscreen'
 const { isDark, toggle: toggleTheme } = useTheme()
+const { isFullscreen } = useFullscreen()
 
 defineProps({
   logoEmoji: { type: String, default: '🍽️' },

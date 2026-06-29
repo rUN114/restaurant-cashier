@@ -65,9 +65,14 @@ const router = createRouter({
           meta: { title: '营业统计' },
         },
         {
+          path: 'ai',
+          component: () => import('@/views/ai/AISuggestView.vue'),
+          meta: { title: 'AI预制建议' },
+        },
+        {
           path: 'bigscreen',
           component: () => import('@/views/dashboard/BigScreen.vue'),
-          meta: { title: '实时大屏' },
+          meta: { title: '实时大屏', fullscreen: true },
         },
         {
           path: 'queue',
@@ -77,7 +82,7 @@ const router = createRouter({
         {
           path: 'queue-board',
           component: () => import('@/views/queue/WaitingBoard.vue'),
-          meta: { title: '等位大屏' },
+          meta: { title: '等位大屏', fullscreen: true },
         },
         {
           path: 'logs/login',
@@ -232,9 +237,14 @@ const router = createRouter({
           meta: { title: '营业统计' },
         },
         {
+          path: 'ai',
+          component: () => import('@/views/ai/AISuggestView.vue'),
+          meta: { title: 'AI预制建议' },
+        },
+        {
           path: 'bigscreen',
           component: () => import('@/views/dashboard/BigScreen.vue'),
-          meta: { title: '实时大屏' },
+          meta: { title: '实时大屏', fullscreen: true },
         },
         {
           path: 'queue',
@@ -244,7 +254,7 @@ const router = createRouter({
         {
           path: 'queue-board',
           component: () => import('@/views/queue/WaitingBoard.vue'),
-          meta: { title: '等位大屏' },
+          meta: { title: '等位大屏', fullscreen: true },
         },
         {
           path: 'logs/login',
@@ -290,7 +300,7 @@ const router = createRouter({
         {
           path: 'bigscreen',
           component: () => import('@/views/dashboard/BigScreen.vue'),
-          meta: { title: '实时大屏' },
+          meta: { title: '实时大屏', fullscreen: true },
         },
         {
           path: 'logs/changelog',
@@ -331,7 +341,7 @@ const router = createRouter({
         {
           path: 'queue-board',
           component: () => import('@/views/queue/WaitingBoard.vue'),
-          meta: { title: '等位大屏' },
+          meta: { title: '等位大屏', fullscreen: true },
         },
         {
           path: 'logs/changelog',
@@ -380,6 +390,21 @@ const router = createRouter({
       children: [
         { path: 'home', component: () => import('@/views/Home.vue'), meta: { title: '首页' } },
         {
+          path: 'kds',
+          component: () => import('@/views/kds/KDSView.vue'),
+          meta: { title: '后厨看板' },
+        },
+        {
+          path: 'ai',
+          component: () => import('@/views/ai/AISuggestView.vue'),
+          meta: { title: 'AI预制建议' },
+        },
+        {
+          path: 'orders',
+          component: () => import('@/views/order/OrderList.vue'),
+          meta: { title: '订单查询' },
+        },
+        {
           path: 'recipes',
           component: () => import('@/views/recipe/RecipeList.vue'),
           meta: { title: '菜品配方' },
@@ -388,16 +413,6 @@ const router = createRouter({
           path: 'consumptions',
           component: () => import('@/views/consumption/ConsumptionList.vue'),
           meta: { title: '原材料消耗' },
-        },
-        {
-          path: 'orders',
-          component: () => import('@/views/order/OrderList.vue'),
-          meta: { title: '订单查询' },
-        },
-        {
-          path: 'kds',
-          component: () => import('@/views/kds/KDSView.vue'),
-          meta: { title: '后厨看板' },
         },
         {
           path: 'logs/changelog',

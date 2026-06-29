@@ -155,7 +155,7 @@ const itemRowClass = (item) => ({
 let ws = null
 const connectWS = () => {
   try {
-    ws = new WebSocket(`ws://${window.location.host}/ws`)
+    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`)
     ws.onmessage = () => poll()
     ws.onclose = () => setTimeout(connectWS, 3000)
   } catch (e) { /* ignore */ }

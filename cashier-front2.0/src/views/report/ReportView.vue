@@ -96,6 +96,37 @@
         </el-table>
       </div>
 
+      <!-- AI 预制建议 -->
+      <el-row v-if="isManager || roleCode === 'CHEF'" :gutter="20" style="margin-top: 20px;">
+        <el-col :span="24">
+          <div class="chart-card" style="background:linear-gradient(135deg,#1a1a2e,#16213e);color:#eee">
+            <h4 style="margin-bottom:12px;color:#e040fb">🤖 AI 明日预制建议</h4>
+            <el-button size="small" type="primary" @click="loadAiSuggest" :loading="aiLoading" style="margin-bottom:8px">
+              {{ aiData ? '重新分析' : '生成建议' }}
+            </el-button>
+            <div v-if="aiData && aiData.length > 0">
+              <template v-for="(item, i) in aiData" :key="i">
+                <el-tag v-if="item.source" type="info" size="small" style="margin-bottom:8px">数据来源：{{ item.source }}</el-tag>
+                <el-table v-if="item.suggestions" :data="item.suggestions" stripe size="small" style="margin-top:8px" :row-class-name="aiRowClass">
+                  <el-table-column prop="dish" label="菜品" width="120" />
+                  <el-table-column prop="quantity" label="建议预制" width="80">
+                    <template #default="{ row }">{{ row.quantity }} 份</template>
+                  </el-table-column>
+                  <el-table-column prop="reason" label="原因" />
+                </el-table>
+                <div v-if="item.forecast" style="margin-top:8px;color:#00e676">
+                  📊 预计营业额：<b>{{ item.forecast }}</b>
+                </div>
+                <div v-if="item.alerts && item.alerts.length > 0" style="margin-top:8px">
+                  <el-tag v-for="(a, j) in item.alerts" :key="j" type="danger" size="small" style="margin:2px">⚠️ {{ a }}</el-tag>
+                </div>
+                <div v-if="item.raw" style="white-space:pre-wrap;font-size:13px;color:#a0a0a0;margin-top:8px">{{ item.raw }}</div>
+              </template>
+            </div>
+          </div>
+        </el-col>
+      </el-row>
+
       <!-- 员工绩效排行 -->
       <el-row :gutter="20" style="margin-top: 20px;">
         <el-col :span="24">
@@ -247,6 +278,8 @@ const cashierRankData = ref([])
 const costCardData = ref([])
 const turnoverData = ref([])
 const rankLoading = ref(false)
+const aiLoading = ref(false)
+const aiData = ref(null)
 const loading = ref(false)
 
 const percent = (v, total) => total > 0 ? (v / total * 100).toFixed(1) : '0.0'
@@ -461,6 +494,17 @@ const onResize = () => {
   chartReturnReasons?.resize()
   chartPeakHours?.resize()
 }
+
+const loadAiSuggest = async () => {
+  aiLoading.value = true
+  try {
+    const res = await request.get('/ai/suggest')
+    aiData.value = res.data || null
+  } catch (_) { ElMessage.error('AI分析失败') }
+  finally { aiLoading.value = false }
+}
+
+const aiRowClass = ({ row }) => row.quantity >= 20 ? 'ai-row-high' : ''
 
 const exportReport = () => {
   // 导出毛利报表

@@ -119,7 +119,7 @@ const cardStyle = (item) => {
 // WebSocket
 const connectWS = () => {
   try {
-    const ws = new WebSocket(`ws://${window.location.host}/ws`)
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`)
     ws.onmessage = () => poll()
     ws.onclose = () => setTimeout(connectWS, 3000)
     socket.value = ws

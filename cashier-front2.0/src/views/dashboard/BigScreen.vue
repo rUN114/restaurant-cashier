@@ -1,5 +1,7 @@
 <template>
   <div class="bigscreen" @click="toggleFullscreen">
+    <!-- 退出全屏按钮 -->
+    <div v-if="isFS" class="exit-btn" @click.stop="exitFullscreen" title="退出全屏 (ESC)">✕ 退出全屏</div>
     <!-- 顶栏 -->
     <div class="bs-header">
       <span class="bs-logo">🏪</span>
@@ -76,10 +78,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { getBigScreen } from '@/api/dashboard'
+import { useFullscreen } from '@/composables/useFullscreen'
 
+const { isFullscreen } = useFullscreen()
 const user = useUserStore()
 
 const now = ref('')
@@ -115,11 +119,21 @@ const refresh = async () => {
   } catch (_) {}
 }
 
+const isFS = ref(false)
 const toggleFullscreen = () => {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen().catch(() => {})
   }
 }
+const exitFullscreen = () => {
+  if (document.fullscreenElement) document.exitFullscreen()
+}
+const onFSChange = () => {
+  isFS.value = !!document.fullscreenElement
+  isFullscreen.value = isFS.value
+}
+onMounted(() => document.addEventListener('fullscreenchange', onFSChange))
+onBeforeUnmount(() => { document.removeEventListener('fullscreenchange', onFSChange); isFullscreen.value = false; if (document.fullscreenElement) document.exitFullscreen() })
 
 onMounted(() => {
   refresh()
@@ -143,6 +157,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.exit-btn {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  background: rgba(255,0,0,0.85); color: #fff; padding: 12px 24px;
+  border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;
+}
+
 .bigscreen {
   background: #0a0f1a;
   min-height: 100vh;

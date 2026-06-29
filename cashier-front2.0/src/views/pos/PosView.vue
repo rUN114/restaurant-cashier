@@ -1073,7 +1073,7 @@ const handleSettle = async () => {
 
   try {
     // 生成唯一请求 ID，后端 Redis SETNX 防重放
-    const requestId = crypto.randomUUID()
+    const requestId = (crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2))
     const settleRes = await settleOrder(
       currentOrder.value.id,
       cashierId,

@@ -10,50 +10,59 @@ import AppLayout from '@/components/AppLayout.vue'
 const { t } = useI18n()
 
 const menuItems = computed(() => [
-  // 第一梯队：日常最高频操作
-  { index: '/manager/home',   icon: 'HomeFilled',   label: t('menu.home') },
-  { index: '/manager/pos',    icon: 'ShoppingCart',  label: t('menu.pos') },
-  { index: '/manager/orders', icon: 'List',          label: t('menu.orderQuery') },
-  // 营业统计：店长日常核心职责，上移
-  { index: '/manager/report', icon: 'TrendCharts', label: t('menu.report') },
-  { index: '/manager/bigscreen', icon: 'Monitor', label: '实时大屏' },
-  { index: '/manager/queue', icon: 'List', label: '等位管理' },
-  { index: '/manager/queue-board', icon: 'Monitor', label: '等位大屏' },
-
-  // 第二梯队：门店与人员（店长看本店信息、管员工、管餐桌）
+  // 经营看板
   {
-    index: 'org', icon: 'OfficeBuilding', label: t('menu.storesAndStaff'),
+    index: 'dash', icon: 'TrendCharts', label: '经营看板',
     children: [
-      { index: '/manager/stores', icon: 'Shop',    label: t('menu.storeInfo') },
-      { index: '/manager/users',  icon: 'User',    label: t('menu.employeeManage') },
-      { index: '/manager/tables', icon: 'Grid',    label: t('menu.tableManage') },
+      { index: '/manager/home',      label: t('menu.home') },
+      { index: '/manager/report',    label: t('menu.report') },
+      { index: '/manager/bigscreen', label: '实时大屏' },
+      { index: '/manager/queue-board', label: '等位大屏' },
     ],
   },
-  // 菜品管理独立
+  // AI
+  { index: '/manager/ai', icon: 'Notebook', label: '🤖 AI预制建议' },
+  // 日常运营
   {
-    index: 'dish', icon: 'KnifeFork', label: t('menu.dishManage'),
+    index: 'ops', icon: 'ShoppingCart', label: '日常运营',
+    children: [
+      { index: '/manager/pos',    label: t('menu.pos') },
+      { index: '/manager/orders', label: t('menu.orderQuery') },
+      { index: '/manager/queue',  label: '等位管理' },
+    ],
+  },
+  // 菜品管理
+  {
+    index: 'dish', icon: 'KnifeFork', label: '菜品管理',
     children: [
       { index: '/manager/dishes',     label: t('menu.dishList') },
       { index: '/manager/categories', label: t('menu.categoryManage') },
+      { index: '/manager/recipes',    label: t('menu.recipeManage') },
     ],
   },
-
-  // 第三梯队：供应链
+  // 进销存
   {
-    index: 'supply', icon: 'Box', label: t('menu.supplyChain'),
+    index: 'supply', icon: 'Box', label: '进销存',
     children: [
-      { index: '/manager/materials',     label: t('menu.materialManage') },
-      { index: '/manager/purchases',     label: t('menu.purchaseManage') },
-      { index: '/manager/inventory',     label: t('menu.inventoryQuery') },
-      { index: '/manager/recipes',       label: t('menu.recipeManage') },
-      { index: '/manager/consumptions',  label: t('menu.consumptionManage') },
-      { index: '/manager/fixed-costs',   label: t('menu.fixedCostManage') },
+      { index: '/manager/inventory',    label: t('menu.inventoryQuery') },
+      { index: '/manager/purchases',    label: t('menu.purchaseManage') },
+      { index: '/manager/materials',    label: t('menu.materialManage') },
+      { index: '/manager/consumptions', label: t('menu.consumptionManage') },
+      { index: '/manager/fixed-costs',  label: t('menu.fixedCostManage') },
     ],
   },
-
-  // 第四梯队：系统日志
+  // 门店
   {
-    index: 'logs', icon: 'Document', label: t('menu.systemLogs'),
+    index: 'store', icon: 'OfficeBuilding', label: '门店管理',
+    children: [
+      { index: '/manager/stores', label: t('menu.storeInfo') },
+      { index: '/manager/tables', label: t('menu.tableManage') },
+      { index: '/manager/users',  label: t('menu.employeeManage') },
+    ],
+  },
+  // 系统
+  {
+    index: 'sys', icon: 'Setting', label: '系统',
     children: [
       { index: '/manager/logs/operation',  label: t('menu.operationLog') },
       { index: '/manager/logs/login',      label: t('menu.loginLog') },
