@@ -35,7 +35,7 @@ public class MaterialConsumptionController {
 
     // 分页查询消耗记录（管理员用）
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
+    @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store', 'chef')")
     public PageResult<List<MaterialConsumption>> getAllConsumptions(
             @RequestParam(required = false) Long storeId,
             @RequestParam(defaultValue = "1") Integer pageNum,
