@@ -29,7 +29,9 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
     @PostMapping("/take")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','waiter')")
     public Result<WaitingQueue> take(@RequestBody WaitingQueue q, HttpServletRequest req) {
-        if (q.getStoreId() == null) q.setStoreId(getStoreId(req));
+        // 非全局管理员强制使用自己的门店
+        Long forcedStoreId = forceStoreId(req);
+        q.setStoreId(forcedStoreId != null ? forcedStoreId : q.getStoreId());
         // 生成排队号
         String prefix = q.getTablePref() != null && q.getTablePref().contains("包厢") ? "V" :
                         q.getTablePref() != null && q.getTablePref().contains("中") ? "B" : "A";
@@ -47,7 +49,9 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
     /** 当前等位列表 */
     @GetMapping("/list")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','waiter')")
-    public Result<List<WaitingQueue>> list(@RequestParam(required = false) Long storeId) {
+    public Result<List<WaitingQueue>> list(@RequestParam(required = false) Long storeId,
+                                           HttpServletRequest req) {
+        storeId = resolveStoreId(storeId, req);
         var w = new LambdaQueryWrapper<WaitingQueue>();
         w.eq(WaitingQueue::getStatus, "waiting");
         if (storeId != null) w.eq(WaitingQueue::getStoreId, storeId);
@@ -58,9 +62,14 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
     /** 叫号（安排入座） */
     @PutMapping("/call/{id}")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','waiter')")
-    public Result<Void> call(@PathVariable Long id, @RequestParam(required = false) String table) {
+    public Result<Void> call(@PathVariable Long id, @RequestParam(required = false) String table,
+                             HttpServletRequest req) {
         WaitingQueue q = getById(id);
         if (q == null) return Result.error("排队号不存在");
+        // 非管理员只能操作本门店的等位
+        if (!isAdmin(req) && !q.getStoreId().equals(getStoreId(req))) {
+            return Result.error("无权操作其他门店的等位");
+        }
         q.setStatus("seated");
         q.setSeatedTable(table);
         q.setSeatedAt(LocalDateTime.now());
@@ -71,9 +80,12 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
     /** 取消等位 */
     @PutMapping("/cancel/{id}")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','waiter')")
-    public Result<Void> cancel(@PathVariable Long id) {
+    public Result<Void> cancel(@PathVariable Long id, HttpServletRequest req) {
         WaitingQueue q = getById(id);
         if (q == null) return Result.error("排队号不存在");
+        if (!isAdmin(req) && !q.getStoreId().equals(getStoreId(req))) {
+            return Result.error("无权操作其他门店的等位");
+        }
         q.setStatus("cancelled");
         updateById(q);
         return Result.success();
@@ -81,7 +93,9 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
 
     /** 最近叫号记录 */
     @GetMapping("/called")
-    public Result<List<WaitingQueue>> called(@RequestParam(required = false) Long storeId) {
+    public Result<List<WaitingQueue>> called(@RequestParam(required = false) Long storeId,
+                                              HttpServletRequest req) {
+        storeId = resolveStoreId(storeId, req);
         var w = new LambdaQueryWrapper<WaitingQueue>();
         w.eq(WaitingQueue::getStatus, "seated");
         if (storeId != null) w.eq(WaitingQueue::getStoreId, storeId);
@@ -91,7 +105,9 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
 
     /** 等位大屏数据：当前等待 + 桌台状态 */
     @GetMapping("/board")
-    public Result<Map<String, Object>> board(@RequestParam(required = false) Long storeId) {
+    public Result<Map<String, Object>> board(@RequestParam(required = false) Long storeId,
+                                              HttpServletRequest req) {
+        storeId = resolveStoreId(storeId, req);
         var w = new LambdaQueryWrapper<WaitingQueue>();
         w.eq(WaitingQueue::getStatus, "waiting");
         if (storeId != null) w.eq(WaitingQueue::getStoreId, storeId);
@@ -109,8 +125,34 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
         res.put("totalTables", total);
         res.put("occupiedTables", occupied);
         res.put("freeTables", total - occupied);
-        res.put("estimatedWait", waiting.size() * 5); // 每桌约5分钟
+        res.put("estimatedWait", waiting.size() * 5);
         return Result.success(res);
+    }
+
+    // ====== 内部方法 ======
+
+    /** 非全局管理员强制使用自己的门店，防止跨店操作 */
+    private Long forceStoreId(HttpServletRequest req) {
+        return isAdmin(req) ? null : getStoreId(req);
+    }
+
+    /** 解析门店：非管理员只能查自己门店 */
+    private Long resolveStoreId(Long paramStoreId, HttpServletRequest req) {
+        if (isAdmin(req)) return paramStoreId;
+        return getStoreId(req); // 忽略前端传参，强制用自己的门店
+    }
+
+    private boolean isAdmin(HttpServletRequest req) {
+        return "admin_global".equals(getRole(req));
+    }
+
+    private String getRole(HttpServletRequest req) {
+        String h = req.getHeader("Authorization");
+        if (h != null && h.startsWith("Bearer ")) {
+            try { Claims c = jwtUtil.parseToken(h.substring(7)); return (String) c.get("roleCode"); }
+            catch (Exception e) {}
+        }
+        return null;
     }
 
     private Long getStoreId(HttpServletRequest req) {
