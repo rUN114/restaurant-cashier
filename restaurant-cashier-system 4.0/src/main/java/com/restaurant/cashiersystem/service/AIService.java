@@ -102,12 +102,15 @@ public class AIService {
     private String buildPrompt(Map<String, Object> data) {
         String tomorrow = (String) data.get("tomorrow");
         return String.format(
-            "明天是%s。以下是餐厅近30天销售数据和近7天营业额。请分析并给出明日建议：\n" +
-            "1. 建议预制哪些菜品，多少份\n" +
-            "2. 预计明日总营业额\n" +
-            "3. 备货提醒（哪些原料可能不够）\n\n" +
+            "你是资深餐饮顾问。明天是%s。以下是该餐厅近30天菜品日销量和近7天日营业额。\n\n" +
             "数据：%s\n\n" +
-            "只返回JSON：{\"suggestions\":[{\"dish\":\"菜名\",\"quantity\":份数,\"reason\":\"原因\"}],\"forecast\":\"预计营业额\",\"alerts\":[\"提醒1\"]}",
+            "请输出以下内容的JSON（只返回JSON，不要其他文字）：\n" +
+            "1. forecast: 预计明日总营业额（格式如\"¥150-200元\"）\n" +
+            "2. suggestions: 每个菜品建议预制份数+简短原因（如\"周二历史双倍\"）\n" +
+            "3. alerts: 需要提前备货的原料预警\n" +
+            "4. peakHint: 预计明日高峰时段（如\"11:30-12:30\"）\n" +
+            "5. totalDishes: 建议预制总份数\n" +
+            "JSON格式：{\"forecast\":\"..\",\"peakHint\":\"..\",\"totalDishes\":数字,\"suggestions\":[{\"dish\":\"菜名\",\"quantity\":数字,\"reason\":\"原因\"}],\"alerts\":[\"..\"]}",
             tomorrow, safeJson(data));
     }
 
