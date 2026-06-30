@@ -3,7 +3,12 @@
     <el-card>
       <div class="page-header">
         <h3>🎫 等位管理</h3>
-        <el-button type="primary" size="small" @click="dialogVisible = true">+ 取号</el-button>
+        <div style="display:flex;gap:12px;align-items:center">
+          <el-select v-if="isAdmin" v-model="selectedStoreId" placeholder="选择门店" size="small" style="width:160px" @change="load">
+            <el-option v-for="s in stores" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+          <el-button type="primary" size="small" @click="dialogVisible = true">+ 取号</el-button>
+        </div>
       </div>
 
       <el-row :gutter="20" style="margin-bottom:16px">
@@ -70,12 +75,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
+import { getAllStores } from '@/api'
 import { ElMessage } from 'element-plus'
 
 const user = useUserStore()
+const isAdmin = computed(() => user.roleCode === 'ADMIN')
+const stores = ref([])
+const selectedStoreId = ref(null)
 const waitingList = ref([])
 const freeTables = ref(0)
 const dialogVisible = ref(false)
@@ -85,12 +94,13 @@ const seatTable = ref('')
 
 const form = ref({ customerName: '', phone: '', partySize: 2, tablePref: '小桌' })
 
-const storeId = () => user.roleCode === 'ADMIN' ? undefined : user.storeId
+const effectiveStoreId = () => isAdmin.value ? selectedStoreId.value : user.storeId
 
 const load = async () => {
+  const sid = effectiveStoreId()
   const [qr, br] = await Promise.all([
-    request.get('/queue/list', { params: { storeId: storeId() } }),
-    request.get('/queue/board', { params: { storeId: storeId() } })
+    request.get('/queue/list', { params: { storeId: sid } }),
+    request.get('/queue/board', { params: { storeId: sid } })
   ])
   waitingList.value = qr.data || []
   freeTables.value = br.data?.freeTables || 0
@@ -98,7 +108,7 @@ const load = async () => {
 
 const submit = async () => {
   try {
-    await request.post('/queue/take', { ...form.value, storeId: user.storeId })
+    await request.post('/queue/take', { ...form.value, storeId: effectiveStoreId() || user.storeId })
     ElMessage.success('取号成功')
     dialogVisible.value = false
     form.value = { customerName: '', phone: '', partySize: 2, tablePref: '小桌' }
@@ -135,7 +145,12 @@ const fmtElapsed = (t) => {
   return m < 1 ? '刚刚' : `${m}分钟`
 }
 
-onMounted(load)
+onMounted(async () => {
+  if (isAdmin.value) {
+    try { const res = await getAllStores(); stores.value = res.data || []; selectedStoreId.value = stores.value[0]?.id || null } catch (_) {}
+  }
+  load()
+})
 </script>
 
 <style scoped>
