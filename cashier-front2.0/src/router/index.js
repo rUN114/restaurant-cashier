@@ -428,10 +428,12 @@ const router = createRouter({
 })
 
 // 全局登录/角色守卫
+const ROLE_MAP = { admin_global: 'ADMIN', admin_store: 'STORE_ADMIN', cashier: 'CASHIER', waiter: 'WAITER', chef: 'CHEF', purchaser: 'PURCHASER' }
+
 router.beforeEach((to, from, next) => {
   const cookies = useCookies()
   const token = cookies.get('cashier-token')
-  const role = cookies.get('cashier-role')?.trim()
+  const role = ROLE_MAP[cookies.get('cashier-role')?.trim()] || cookies.get('cashier-role')?.trim()
 
   // 无需登录的页面
   if (to.meta.noAuth) {
