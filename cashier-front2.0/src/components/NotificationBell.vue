@@ -46,10 +46,10 @@ const load = async () => {
   const items = []
   const storeId = user.storeId
 
-  // 库存预警
-  if (['ADMIN', 'STORE_ADMIN', 'CHEF', 'PURCHASER'].includes(user.roleCode) && storeId) {
+  // 库存预警（管理员storeId为null时查全部）
+  if (['ADMIN', 'STORE_ADMIN', 'CHEF', 'PURCHASER'].includes(user.roleCode)) {
     try {
-      const res = await getLowStock(storeId)
+      const res = await getLowStock(storeId || undefined)
       const stocks = res.data || []
       for (const s of stocks) {
         items.push({

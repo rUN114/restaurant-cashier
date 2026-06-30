@@ -211,13 +211,13 @@ public class MaterialInventoryController {
     @GetMapping("/low-stock")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','chef','purchaser')")
     @Operation(summary = "低库存预警", description = "返回库存低于预警值的原料")
-    public Result<List<Map<String, Object>>> getLowStock(@RequestParam Long storeId) {
+    public Result<List<Map<String, Object>>> getLowStock(@RequestParam(required = false) Long storeId) {
         LambdaQueryWrapper<MaterialInventory> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(MaterialInventory::getStoreId, storeId);
+        if (storeId != null) wrapper.eq(MaterialInventory::getStoreId, storeId);
         List<MaterialInventory> all = materialInventoryService.list(wrapper);
 
         var materialWrapper = new LambdaQueryWrapper<com.restaurant.cashiersystem.entity.Material>();
-        materialWrapper.eq(com.restaurant.cashiersystem.entity.Material::getStoreId, storeId);
+        if (storeId != null) materialWrapper.eq(com.restaurant.cashiersystem.entity.Material::getStoreId, storeId);
         List<com.restaurant.cashiersystem.entity.Material> materials = materialService.list(materialWrapper);
 
         List<Map<String, Object>> result = new ArrayList<>();

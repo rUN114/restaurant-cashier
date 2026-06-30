@@ -9,12 +9,12 @@ const cookies = useCookies(['cashier-token', 'cashier-role', 'cashier-store-id']
 export const useUserStore = defineStore('user', {
   state: () => ({
     token: cookies.get('cashier-token') || '',
-    role: cookies.get('cashier-role')?.trim() || '',
+    role: ROLE_MAP[cookies.get('cashier-role')?.trim()] || cookies.get('cashier-role')?.trim() || '',
     storeId: cookies.get('cashier-store-id') || null,
     userId: null,
     username: '',
     realName: '',
-    roleCode: cookies.get('cashier-role')?.trim() || '',
+    roleCode: ROLE_MAP[cookies.get('cashier-role')?.trim()] || cookies.get('cashier-role')?.trim() || '',
   }),
 
   actions: {

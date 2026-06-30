@@ -317,10 +317,10 @@ onMounted(async () => {
     } catch (e) { /* ignore */ }
   }
 
-  // --- 采购员 & 厨师：库存预警 ---
-  if (canManageInventory.value && storeId) {
+  // --- 采购员 & 厨师 & 管理员：库存预警 ---
+  if (canManageInventory.value) {
     try {
-      const res = await getLowStock(storeId)
+      const res = await getLowStock(storeId || undefined)
       lowStockItems.value = res.data || []
       lowStockCount.value = lowStockItems.value.length
     } catch (e) { lowStockItems.value = [] }
