@@ -98,9 +98,10 @@ const effectiveStoreId = () => isAdmin.value ? selectedStoreId.value : user.stor
 
 const load = async () => {
   const sid = effectiveStoreId()
+  const params = sid ? { storeId: sid } : {}
   const [qr, br] = await Promise.all([
-    request.get('/queue/list', { params: { storeId: sid } }),
-    request.get('/queue/board', { params: { storeId: sid } })
+    request.get('/queue/list', { params }),
+    request.get('/queue/board', { params })
   ])
   waitingList.value = qr.data || []
   freeTables.value = br.data?.freeTables || 0

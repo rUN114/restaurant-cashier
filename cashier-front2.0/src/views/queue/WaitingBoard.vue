@@ -68,13 +68,15 @@ onBeforeUnmount(() => { isFullscreen.value = false; if (document.fullscreenEleme
 
 const load = async () => {
   try {
-    const storeId = user.roleCode === 'ADMIN' ? undefined : user.storeId
-    const res = await request.get('/queue/board', { params: { storeId } })
+    const sid = user.roleCode === 'ADMIN' ? null : user.storeId
+    const params = sid ? { storeId: sid } : {}
+    const res = await request.get('/queue/board', { params })
     if (res.data) Object.assign(data, res.data)
   } catch (_) {}
   try {
-    const storeId2 = user.roleCode === 'ADMIN' ? undefined : user.storeId
-    const cres = await request.get('/queue/called', { params: { storeId: storeId2 } })
+    const sid2 = user.roleCode === 'ADMIN' ? null : user.storeId
+    const p2 = sid2 ? { storeId: sid2 } : {}
+    const cres = await request.get('/queue/called', { params: p2 })
     if (cres.data) called.value = cres.data
   } catch (_) {}
 }
