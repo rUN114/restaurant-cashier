@@ -253,7 +253,7 @@
               class="discount-input"
             />
             <span class="quick-discounts">
-              <el-button size="small" @click="discountAmount = (Number(total) - Number(roundDown(total))).toFixed(2)">免零头</el-button>
+              <el-button size="small" @click="discountAmount = (Number(total) - Math.floor(Number(total))).toFixed(2)">免零头</el-button>
               <el-button size="small" @click="discountAmount = Math.min(Number(discountAmount||0) + 5, Number(total))">减5</el-button>
               <el-button size="small" @click="discountAmount = Math.min(Number(discountAmount||0) + 10, Number(total))">减10</el-button>
               <el-button size="small" @click="discountAmount = (Number(total) * 0.12).toFixed(2)">8.8折</el-button>
