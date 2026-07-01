@@ -3,9 +3,11 @@ package com.restaurant.cashiersystem.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.restaurant.cashiersystem.common.PageResult;
 import com.restaurant.cashiersystem.common.Result;
+import com.restaurant.cashiersystem.entity.Material;
 import com.restaurant.cashiersystem.entity.MaterialInventory;
 import com.restaurant.cashiersystem.entity.Purchase;
 import com.restaurant.cashiersystem.service.MaterialInventoryService;
+import com.restaurant.cashiersystem.service.MaterialService;
 import com.restaurant.cashiersystem.service.PurchaseService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
@@ -15,7 +17,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Tag(name = "采购管理", description = "采购入库（自动更新库存）及查询")
 @RestController
@@ -28,6 +32,9 @@ public class PurchaseController {
 
     @Autowired
     private MaterialInventoryService inventoryService;
+
+    @Autowired
+    private MaterialService materialService;
 
     // ✅ 修复：添加admin_global权限
     @GetMapping("/store/{storeId}")
@@ -82,9 +89,25 @@ public class PurchaseController {
     public PageResult<List<Purchase>> getPurchasesByStorePage(
             @PathVariable Long storeId,
             @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "10") Integer pageSize) {
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String materialName) {
         LambdaQueryWrapper<Purchase> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Purchase::getStoreId, storeId);
+
+        // 按原料名称模糊搜索
+        if (materialName != null && !materialName.isBlank()) {
+            LambdaQueryWrapper<Material> matWrapper = new LambdaQueryWrapper<>();
+            matWrapper.like(Material::getName, materialName);
+            List<Long> materialIds = materialService.list(matWrapper).stream()
+                    .map(Material::getId)
+                    .collect(Collectors.toList());
+            if (materialIds.isEmpty()) {
+                return PageResult.success(Collections.emptyList(), 0L, 0,
+                        1, pageSize);
+            }
+            wrapper.in(Purchase::getMaterialId, materialIds);
+        }
+
         wrapper.orderByDesc(Purchase::getPurchaseTime);
 
         com.baomidou.mybatisplus.extension.plugins.pagination.Page<Purchase> page =

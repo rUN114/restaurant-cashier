@@ -6,11 +6,11 @@
       </div>
 
       <!-- 门店筛选器（和库存页面完全一致） -->
-      <div class="filter-group" style="margin-bottom: 16px">
+      <div class="filter-group" style="margin-bottom: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px">
         <el-select
           v-model="selectedStoreId"
           placeholder="请选择门店查看采购记录"
-          style="width: 200px; margin-right: 16px"
+          style="width: 200px"
           clearable
           :disabled="isLocked"
           @change="loadPurchases"
@@ -22,6 +22,19 @@
             :value="store.id"
           />
         </el-select>
+        <el-input
+          v-model="filters.materialName"
+          placeholder="搜索原料名称，如：牛肉"
+          style="width: 220px"
+          clearable
+          @keyup.enter="searchPurchases"
+          @clear="searchPurchases"
+        >
+          <template #prefix>
+            <span style="color:#909399">🔍</span>
+          </template>
+        </el-input>
+        <el-button type="primary" size="small" @click="searchPurchases">搜索</el-button>
         <span style="color: #909399">
           {{ selectedStoreId ? `已选择: ${getStoreName(selectedStoreId)}` : '请先选择门店' }}
         </span>
@@ -79,7 +92,7 @@ import { ElMessage } from 'element-plus'
 const { stores, selectedStoreId, isLocked, loadStores, getStoreName } = useStoreFilter()
 
 // 服务端分页（复用 usePagination，修复 total 始终等于当前页条数的 bug）
-const { pageNum, pageSize, total, loading, data: purchases, load, onPageChange, onSizeChange, resetAndLoad } =
+const { pageNum, pageSize, total, loading, data: purchases, filters, load, onPageChange, onSizeChange, resetAndLoad } =
   usePagination(
     (params) => {
       if (!selectedStoreId.value) {
@@ -112,6 +125,15 @@ const loadPurchases = () => {
   if (!selectedStoreId.value) {
     purchases.value = []
     total.value = 0
+    return
+  }
+  resetAndLoad()
+}
+
+// 原料名称搜索
+const searchPurchases = () => {
+  if (!selectedStoreId.value) {
+    ElMessage.warning('请先选择门店')
     return
   }
   resetAndLoad()
