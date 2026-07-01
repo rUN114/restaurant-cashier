@@ -16,7 +16,8 @@ export const createPurchase = (data) => request.post('/purchases', data)
 // ------ 原料库存 ------
 export const getInventoryByStore = (storeId) => request.get(`/inventory/store/${storeId}`)
 export const adjustInventory = (data) => request.post('/inventory/adjust', data)
-export const getLowStock = (storeId) => request.get('/inventory/low-stock', { params: { storeId } })
-export const getStockRecords = (storeId) => request.get('/inventory/records', { params: { storeId } })
-export const getPurchaseHistory = (storeId, materialId) => request.get('/inventory/purchase-history', { params: { storeId, materialId } })
+const cleanParams = (obj) => { for (const k in obj) if (obj[k] == null) delete obj[k]; return obj }
+export const getLowStock = (storeId) => request.get('/inventory/low-stock', { params: cleanParams({ storeId }) })
+export const getStockRecords = (storeId) => request.get('/inventory/records', { params: cleanParams({ storeId }) })
+export const getPurchaseHistory = (storeId, materialId) => request.get('/inventory/purchase-history', { params: cleanParams({ storeId, materialId }) })
 export const backfillCostPrice = () => request.post('/inventory/backfill-cost-price')

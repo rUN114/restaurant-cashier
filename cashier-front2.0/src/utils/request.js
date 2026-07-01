@@ -17,6 +17,13 @@ request.interceptors.request.use((config) => {
     config.headers.Authorization = 'Bearer ' + token
   }
 
+  // 清理 null/undefined 的 query 参数，避免发送 "undefined" 字符串
+  if (config.params) {
+    for (const key in config.params) {
+      if (config.params[key] == null) delete config.params[key]
+    }
+  }
+
   return config
 })
 
