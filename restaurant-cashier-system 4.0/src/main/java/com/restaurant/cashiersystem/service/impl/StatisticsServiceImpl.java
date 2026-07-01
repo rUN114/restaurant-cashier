@@ -196,12 +196,14 @@ public class StatisticsServiceImpl implements StatisticsService {
         List<Object> params = new ArrayList<>();
 
         // 构建成本子查询：将 storeId 推入子查询避免全量扫描
+        // cost_price 是采购单位价，需除以 unit_rate 换算为库存单位价
         StringBuilder costSub = new StringBuilder(
             "(SELECT dr.dish_id, dr.store_id, " +
-            "SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)) AS cost_per_unit " +
+            "SUM(dr.used_quantity * COALESCE(mi.cost_price, 0) / COALESCE(NULLIF(m.unit_rate, 0), 1)) AS cost_per_unit " +
             "FROM dish_recipes dr " +
             "LEFT JOIN material_inventory mi ON dr.material_id = mi.material_id " +
-            "AND dr.store_id = mi.store_id ");
+            "AND dr.store_id = mi.store_id " +
+            "LEFT JOIN materials m ON dr.material_id = m.id ");
         if (storeId != null) {
             costSub.append("WHERE dr.store_id = ? ");
             params.add(storeId);   // ← 子查询的 ? 排最前面（SQL 中先出现）

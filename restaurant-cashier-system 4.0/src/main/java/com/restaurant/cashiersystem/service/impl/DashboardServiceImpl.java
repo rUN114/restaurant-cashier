@@ -119,6 +119,7 @@ public class DashboardServiceImpl implements DashboardService {
                 : BigDecimal.ZERO);
 
         // 今日毛利（营业额 - 原料成本）
+        // cost_price 是采购单位价，需除以 unit_rate 换算为库存单位价
         String profitSql = "SELECT " +
                 "COALESCE(SUM(oi.price * oi.quantity), 0) AS sales, " +
                 "COALESCE(SUM(c.cost_unit * oi.quantity), 0) AS cost " +
@@ -127,10 +128,12 @@ public class DashboardServiceImpl implements DashboardService {
                 (storeId != null ? " AND o.store_id = " + storeId : "") +
                 " LEFT JOIN (" +
                 "  SELECT dr.dish_id, dr.store_id, " +
-                "  SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)) AS cost_unit " +
+                "  SUM(dr.used_quantity * COALESCE(mi.cost_price, 0) / COALESCE(NULLIF(m.unit_rate, 0), 1)) AS cost_unit " +
                 "  FROM dish_recipes dr " +
                 "  LEFT JOIN material_inventory mi ON dr.material_id = mi.material_id " +
-                "  AND dr.store_id = mi.store_id GROUP BY dr.dish_id, dr.store_id" +
+                "  AND dr.store_id = mi.store_id " +
+                "  LEFT JOIN materials m ON dr.material_id = m.id " +
+                "  GROUP BY dr.dish_id, dr.store_id" +
                 ") c ON oi.dish_id = c.dish_id AND o.store_id = c.store_id";
         Map<String, Object> profitRow = jdbcTemplate.queryForMap(profitSql);
         BigDecimal sales = (BigDecimal) profitRow.get("sales");
