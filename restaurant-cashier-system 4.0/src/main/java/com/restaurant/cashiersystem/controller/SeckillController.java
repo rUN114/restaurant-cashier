@@ -129,6 +129,14 @@ public class SeckillController {
             case 0:
                 return buildResult("SOLD_OUT", "已被抢光，下次早点来", requestId);
             case -1:
+                // 已抢过 — 但需回查 MySQL：可能是上次 PENDING 导致的残留
+                {
+                    String pendingCheck = seckillService.checkUserHasPending(dishId, userId);
+                    if (pendingCheck != null) {
+                        return buildResult("PENDING",
+                                "您有结果确认中的订单（" + pendingCheck + "），请稍后查看", requestId);
+                    }
+                }
                 return buildResult("ALREADY_GRABBED", "您已抢过该菜品", requestId);
             case -3:
                 // Redis 超时 → PENDING（不确定）
@@ -147,7 +155,6 @@ public class SeckillController {
     @Operation(summary = "查询秒杀结果", description = "当 POST 请求超时/丢包时调用，确认到底抢没抢到")
     public Result<Map<String, Object>> queryResult(
             @RequestParam String requestId,
-            @RequestParam Long dishId,
             HttpServletRequest request) {
 
         Long userId = getUserIdFromToken(request);
@@ -167,6 +174,19 @@ public class SeckillController {
     public Result<Map<String, Object>> getStock(@PathVariable Long dishId) {
         int stock = seckillService.getCurrentStock(dishId);
         Map<String, Object> data = Map.of("dishId", dishId, "remainingStock", stock);
+        return Result.success(data);
+    }
+
+    /**
+     * 预热秒杀库存 — 将 MySQL dishes.seckill_stock 加载到 Redis
+     * 管理员在秒杀开始前调用
+     */
+    @PostMapping("/preload/{dishId}")
+    @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
+    @Operation(summary = "预热秒杀库存", description = "将 MySQL 秒杀库存同步到 Redis，秒杀开始前必须调用")
+    public Result<Map<String, Object>> preloadStock(@PathVariable Long dishId) {
+        int stock = seckillService.preloadStock(dishId);
+        Map<String, Object> data = Map.of("dishId", dishId, "loadedStock", stock);
         return Result.success(data);
     }
 

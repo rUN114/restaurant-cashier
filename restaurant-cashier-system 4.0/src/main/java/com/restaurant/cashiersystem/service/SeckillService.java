@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -236,14 +238,63 @@ public class SeckillService {
 
     /**
      * 获取 Redis 中该菜品的已抢用户集合（对账用）
+     * <p>使用 SSCAN 分批读取，避免大 Key 阻塞 Redis</p>
      */
     public Set<String> getRedisWinners(Long dishId) {
         try {
-            return stringRedisTemplate.opsForSet().members(USER_KEY_PREFIX + dishId);
+            String key = USER_KEY_PREFIX + dishId;
+            Set<String> result = new java.util.HashSet<>();
+            ScanOptions options = ScanOptions.scanOptions()
+                    .match("*")
+                    .count(1000)
+                    .build();
+            try (Cursor<String> cursor = stringRedisTemplate.opsForSet().scan(key, options)) {
+                while (cursor.hasNext()) {
+                    result.add(cursor.next());
+                }
+            }
+            return result;
         } catch (Exception e) {
             log.warn("获取 Redis 秒杀用户集合失败: dishId={}", dishId, e);
             return Set.of();
         }
+    }
+
+    /**
+     * 检查用户是否有 PENDING 秒杀记录（用于 -1 时的回查）
+     * @return requestId（有 PENDING）或 null（无）
+     */
+    public String checkUserHasPending(Long dishId, Long userId) {
+        try {
+            LambdaQueryWrapper<SeckillRecord> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(SeckillRecord::getDishId, dishId)
+                   .eq(SeckillRecord::getUserId, userId)
+                   .eq(SeckillRecord::getStatus, "PENDING")
+                   .last("LIMIT 1");
+            SeckillRecord record = seckillRecordMapper.selectOne(wrapper);
+            return record != null ? record.getRequestId() : null;
+        } catch (Exception e) {
+            log.warn("查询 PENDING 记录失败: dishId={}, userId={}", dishId, userId, e);
+            return null;
+        }
+    }
+
+    /**
+     * 预热秒杀库存 — 从 MySQL dishes.seckill_stock 加载到 Redis
+     * @return 加载的库存数量
+     */
+    public int preloadStock(Long dishId) {
+        Dish dish = dishMapper.selectById(dishId);
+        if (dish == null) {
+            throw new IllegalArgumentException("菜品不存在");
+        }
+        if (dish.getSeckillStock() == null || dish.getSeckillStock() <= 0) {
+            throw new IllegalArgumentException("该菜品未设置秒杀库存");
+        }
+        String stockKey = STOCK_KEY_PREFIX + dishId;
+        stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(dish.getSeckillStock()));
+        log.info("秒杀库存预热完成: dishId={}, stock={}", dishId, dish.getSeckillStock());
+        return dish.getSeckillStock();
     }
 
     /**
