@@ -14,10 +14,12 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.CorsUtils;                    // 新增导入
+import org.springframework.web.cors.CorsUtils;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -34,15 +36,23 @@ public class SecurityConfig {
         return new JwtAuthenticationFilter();
     }
 
-    // 配置 CORS 允许前端跨域
+    /**
+     * CORS 允许的来源域名列表，通过环境变量 CORS_ORIGINS 配置，逗号分隔。
+     * 默认仅允许本地开发环境。生产环境必须显式配置。
+     * 示例: export CORS_ORIGINS=https://pos.example.com,https://admin.example.com
+     */
+    @org.springframework.beans.factory.annotation.Value("${cors.allowed-origins:http://localhost:5173,http://localhost:8080,http://127.0.0.1:5173,http://127.0.0.1:8080}")
+    private String allowedOriginsConfig;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        List<String> allowedOrigins = Arrays.asList(allowedOriginsConfig.split(","));
         CorsConfiguration configuration = new CorsConfiguration();
-        // 生产环境应改为具体域名列表，如 Arrays.asList("https://pos.example.com")
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "http://127.0.0.1:*"));
+        configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true); // 允许携带 cookie
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(1800L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

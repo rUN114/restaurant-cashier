@@ -8,6 +8,7 @@ import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -29,7 +30,10 @@ public class AIService {
 
     public AIService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
-        this.restTemplate = new RestTemplate();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(30));
+        this.restTemplate = new RestTemplate(factory);
     }
 
     /** 生成明日预制建议 */
@@ -70,26 +74,32 @@ public class AIService {
 
     /** 收集30天销售数据 */
     private Map<String, Object> gatherSalesData(Long storeId) {
-        String sf = storeId != null ? " AND o.store_id = " + storeId : "";
-
         // 明天是周几
         String tomorrow = LocalDate.now().plusDays(1).getDayOfWeek().toString();
 
         // 近30天每日销量TOP10菜品
+        List<Object> salesParams = new ArrayList<>();
         String sql = "SELECT d.name, DATE(o.settled_at) AS day, SUM(oi.quantity) AS qty " +
             "FROM order_items oi JOIN orders o ON oi.order_id = o.id " +
             "JOIN dishes d ON oi.dish_id = d.id " +
-            "WHERE o.status = 'settled' AND o.settled_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)" + sf +
-            " GROUP BY d.name, DATE(o.settled_at) ORDER BY day DESC, qty DESC";
-
-        List<Map<String, Object>> sales = jdbcTemplate.queryForList(sql);
+            "WHERE o.status = 'settled' AND o.settled_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+        if (storeId != null) {
+            sql += " AND o.store_id = ?";
+            salesParams.add(storeId);
+        }
+        sql += " GROUP BY d.name, DATE(o.settled_at) ORDER BY day DESC, qty DESC";
+        List<Map<String, Object>> sales = jdbcTemplate.queryForList(sql, salesParams.toArray());
 
         // 近7天每日总营业额
+        List<Object> revParams = new ArrayList<>();
         String revSql = "SELECT DATE(settled_at) AS day, SUM(final_amount) AS revenue, COUNT(*) AS orders " +
-            "FROM orders WHERE status = 'settled' AND settled_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)" + sf +
-            " GROUP BY DATE(settled_at) ORDER BY day";
-
-        List<Map<String, Object>> revenue = jdbcTemplate.queryForList(revSql);
+            "FROM orders WHERE status = 'settled' AND settled_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+        if (storeId != null) {
+            revSql += " AND store_id = ?";
+            revParams.add(storeId);
+        }
+        revSql += " GROUP BY DATE(settled_at) ORDER BY day";
+        List<Map<String, Object>> revenue = jdbcTemplate.queryForList(revSql, revParams.toArray());
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("tomorrow", tomorrow);
@@ -147,16 +157,20 @@ public class AIService {
 
     /** 未配置AI时的兜底建议（基于近7天平均） */
     private List<Map<String, Object>> fallbackSuggestion(Long storeId) {
-        String sf = storeId != null ? " AND o.store_id = " + storeId : "";
+        List<Object> params = new ArrayList<>();
         String sql = "SELECT d.name, ROUND(AVG(daily.qty), 0) AS suggest FROM (" +
             " SELECT oi.dish_id, DATE(o.settled_at) AS day, SUM(oi.quantity) AS qty " +
             " FROM order_items oi JOIN orders o ON oi.order_id = o.id " +
-            " WHERE o.status = 'settled' AND o.settled_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)" + sf +
-            " GROUP BY oi.dish_id, DATE(o.settled_at)" +
+            " WHERE o.status = 'settled' AND o.settled_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+        if (storeId != null) {
+            sql += " AND o.store_id = ?";
+            params.add(storeId);
+        }
+        sql += " GROUP BY oi.dish_id, DATE(o.settled_at)" +
             ") daily JOIN dishes d ON d.id = daily.dish_id " +
             " GROUP BY d.name ORDER BY suggest DESC LIMIT 10";
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, params.toArray());
         Map<String, Object> fallback = new LinkedHashMap<>();
         fallback.put("source", "近7天日均销量");
         List<Map<String, Object>> suggestions = new ArrayList<>();

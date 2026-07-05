@@ -17,6 +17,11 @@ public class UserDTO {
     @NotBlank(message = "用户名不能为空")
     @Size(min = 2, max = 50, message = "用户名长度需在2~50之间")
     private String username;     // 登录账号（全局唯一）
+    @Size(min = 8, max = 64, message = "密码长度需在8~64之间")
+    @Pattern(
+        regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?]).{8,64}$",
+        message = "密码必须包含大写字母、小写字母、数字和特殊字符"
+    )
     private String password;     // 明文密码（接收前端传入，后端加密后再存）
     private String realName;     // 真实姓名
     @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")

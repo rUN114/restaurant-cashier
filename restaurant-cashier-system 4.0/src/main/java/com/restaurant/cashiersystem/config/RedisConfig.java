@@ -35,10 +35,13 @@ public class RedisConfig {
     private ObjectMapper createObjectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
-        // 启用默认类型信息 — 等同于无参 GenericJackson2JsonRedisSerializer() 的行为
+        // 仅允许项目实体和 DTO 的多态反序列化，降低反序列化漏洞风险
         mapper.activateDefaultTyping(
                 BasicPolymorphicTypeValidator.builder()
-                        .allowIfBaseType(Object.class)
+                        .allowIfBaseType("com.restaurant.cashiersystem.entity.")
+                        .allowIfBaseType("com.restaurant.cashiersystem.dto.")
+                        .allowIfBaseType("java.util.")
+                        .allowIfBaseType("java.math.")
                         .build(),
                 ObjectMapper.DefaultTyping.NON_FINAL
         );

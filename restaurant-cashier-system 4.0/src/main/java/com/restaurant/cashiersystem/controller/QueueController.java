@@ -1,7 +1,6 @@
 package com.restaurant.cashiersystem.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.restaurant.cashiersystem.common.Result;
 import com.restaurant.cashiersystem.entity.WaitingQueue;
 import com.restaurant.cashiersystem.mapper.WaitingQueueMapper;
@@ -10,40 +9,62 @@ import io.jsonwebtoken.Claims;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
 @Tag(name = "等位排队", description = "取号、叫号、等位大屏")
 @RestController
 @RequestMapping("/api/queue")
-public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueue> {
+public class QueueController {
 
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private JwtUtil jwtUtil;
+    @Autowired private WaitingQueueMapper waitingQueueMapper;
+    @Autowired private StringRedisTemplate stringRedisTemplate;
 
-    /** 取号 */
+    /** 取号 — Redis 分布式锁防并发竞态 */
     @PostMapping("/take")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','waiter')")
     public Result<WaitingQueue> take(@RequestBody WaitingQueue q, HttpServletRequest req) {
         // 非全局管理员强制使用自己的门店
         Long forcedStoreId = forceStoreId(req);
-        q.setStoreId(forcedStoreId != null ? forcedStoreId : q.getStoreId());
-        // 生成排队号
+        Long storeId = forcedStoreId != null ? forcedStoreId : q.getStoreId();
+        q.setStoreId(storeId);
+
+        // 生成排队号前缀
         String prefix = q.getTablePref() != null && q.getTablePref().contains("包厢") ? "V" :
                         q.getTablePref() != null && q.getTablePref().contains("中") ? "B" : "A";
-        int count = Math.toIntExact(lambdaQuery()
-                .eq(WaitingQueue::getStoreId, q.getStoreId())
-                .likeRight(WaitingQueue::getQueueNumber, prefix)
-                .count()) + 1;
-        q.setQueueNumber(prefix + String.format("%03d", count));
-        q.setStatus("waiting");
-        q.setCreatedAt(LocalDateTime.now());
-        save(q);
-        return Result.success(q);
+
+        // Redis 分布式锁：同一门店+前缀每次只允许一个取号请求
+        String lockKey = "queue:take:" + storeId + ":" + prefix;
+        int retries = 3;
+        while (retries-- > 0) {
+            Boolean acquired = stringRedisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, "1", Duration.ofSeconds(2));
+            if (Boolean.TRUE.equals(acquired)) {
+                try {
+                    int count = Math.toIntExact(new LambdaQueryWrapper<WaitingQueue>()
+                            .eq(WaitingQueue::getStoreId, storeId)
+                            .likeRight(WaitingQueue::getQueueNumber, prefix)
+                            .count()) + 1;
+                    q.setQueueNumber(prefix + String.format("%03d", count));
+                    q.setStatus("waiting");
+                    q.setCreatedAt(LocalDateTime.now());
+                    waitingQueueMapper.insert(q);
+                    return Result.success(q);
+                } finally {
+                    stringRedisTemplate.delete(lockKey);
+                }
+            }
+            try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+        }
+        return Result.error("取号繁忙，请稍后再试");
     }
 
     /** 当前等位列表 */
@@ -56,7 +77,7 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
         w.eq(WaitingQueue::getStatus, "waiting");
         if (storeId != null) w.eq(WaitingQueue::getStoreId, storeId);
         w.orderByAsc(WaitingQueue::getCreatedAt);
-        return Result.success(list(w));
+        return Result.success(waitingQueueMapper.selectList(w));
     }
 
     /** 叫号（安排入座） */
@@ -64,16 +85,15 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','waiter')")
     public Result<Void> call(@PathVariable Long id, @RequestParam(required = false) String table,
                              HttpServletRequest req) {
-        WaitingQueue q = getById(id);
+        WaitingQueue q = waitingQueueMapper.selectById(id);
         if (q == null) return Result.error("排队号不存在");
-        // 非管理员只能操作本门店的等位
         if (!isAdmin(req) && !q.getStoreId().equals(getStoreId(req))) {
             return Result.error("无权操作其他门店的等位");
         }
         q.setStatus("seated");
         q.setSeatedTable(table);
         q.setSeatedAt(LocalDateTime.now());
-        updateById(q);
+        waitingQueueMapper.updateById(q);
         return Result.success();
     }
 
@@ -81,13 +101,13 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
     @PutMapping("/cancel/{id}")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','waiter')")
     public Result<Void> cancel(@PathVariable Long id, HttpServletRequest req) {
-        WaitingQueue q = getById(id);
+        WaitingQueue q = waitingQueueMapper.selectById(id);
         if (q == null) return Result.error("排队号不存在");
         if (!isAdmin(req) && !q.getStoreId().equals(getStoreId(req))) {
             return Result.error("无权操作其他门店的等位");
         }
         q.setStatus("cancelled");
-        updateById(q);
+        waitingQueueMapper.updateById(q);
         return Result.success();
     }
 
@@ -100,10 +120,10 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
         w.eq(WaitingQueue::getStatus, "seated");
         if (storeId != null) w.eq(WaitingQueue::getStoreId, storeId);
         w.orderByDesc(WaitingQueue::getSeatedAt).last("LIMIT 10");
-        return Result.success(list(w));
+        return Result.success(waitingQueueMapper.selectList(w));
     }
 
-    /** 等位大屏数据：当前等待 + 桌台状态 */
+    /** 等位大屏数据：当前等待 + 桌台状态（参数化查询） */
     @GetMapping("/board")
     public Result<Map<String, Object>> board(@RequestParam(required = false) Long storeId,
                                               HttpServletRequest req) {
@@ -112,11 +132,17 @@ public class QueueController extends ServiceImpl<WaitingQueueMapper, WaitingQueu
         w.eq(WaitingQueue::getStatus, "waiting");
         if (storeId != null) w.eq(WaitingQueue::getStoreId, storeId);
         w.orderByAsc(WaitingQueue::getCreatedAt);
-        List<WaitingQueue> waiting = list(w);
+        List<WaitingQueue> waiting = waitingQueueMapper.selectList(w);
 
-        String tsf = storeId != null ? " WHERE store_id = " + storeId : "";
-        var tableRow = jdbcTemplate.queryForMap(
-            "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status='occupied' THEN 1 ELSE 0 END),0) AS occ FROM tables" + tsf);
+        List<Object> params = new ArrayList<>();
+        String tsf = "";
+        if (storeId != null) {
+            tsf = " WHERE store_id = ?";
+            params.add(storeId);
+        }
+        List<Map<String, Object>> tableRows = jdbcTemplate.queryForList(
+            "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status='occupied' THEN 1 ELSE 0 END),0) AS occ FROM tables" + tsf, params.toArray());
+        Map<String, Object> tableRow = tableRows.isEmpty() ? Map.of("total", 0, "occ", 0) : tableRows.get(0);
         int total = ((Number) tableRow.get("total")).intValue();
         int occupied = ((Number) tableRow.get("occ")).intValue();
 

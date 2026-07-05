@@ -20,17 +20,20 @@ public class JwtUtil {
 
     private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
 
-    @Value("${jwt.secret:${JWT_SECRET}}")
+    @Value("${jwt.secret:}")
     private String secret;
 
     @Value("${jwt.expiration:86400000}")
     private Long expiration;
 
     @PostConstruct
-    private void warnIfDefaultSecret() {
-        if ("${JWT_SECRET}".equals(secret)) {
-            log.warn("⚠ JWT 密钥未配置（使用源码默认值），生产环境请设置环境变量 jwt.secret");
+    private void validateSecret() {
+        if (secret == null || secret.isBlank() || secret.length() < 32) {
+            throw new IllegalStateException(
+                "JWT 密钥未配置或长度不足（至少32字符）。请在环境变量/配置文件中设置 jwt.secret。" +
+                " 示例: export JWT_SECRET=$(openssl rand -base64 48)");
         }
+        log.info("JWT 密钥已加载，长度: {} 字符", secret.length());
     }
 
     /**

@@ -37,6 +37,13 @@ public class MaterialConsumptionServiceImpl extends ServiceImpl<MaterialConsumpt
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void consumeOrderMaterials(Long orderId) {
+        // 幂等保护：已消费过的订单跳过重复扣减
+        long consumed = lambdaQuery().eq(MaterialConsumption::getOrderId, orderId).count();
+        if (consumed > 0) {
+            log.warn("订单 {} 已扣减过原材料库存，跳过重复扣减", orderId);
+            return;
+        }
+
         LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderItem::getOrderId, orderId);
         List<OrderItem> orderItems = orderItemService.list(wrapper);

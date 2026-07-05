@@ -3,6 +3,8 @@ package com.restaurant.cashiersystem.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.restaurant.cashiersystem.common.Result;
 import com.restaurant.cashiersystem.entity.Material;
+import com.restaurant.cashiersystem.service.DishRecipeService;
+import com.restaurant.cashiersystem.service.MaterialInventoryService;
 import com.restaurant.cashiersystem.service.MaterialService;
 import com.restaurant.cashiersystem.util.JwtUtil;
 import io.jsonwebtoken.Claims;
@@ -13,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Tag(name = "原料管理", description = "原料 CRUD、按门店查询")
@@ -23,6 +26,10 @@ public class MaterialController {
 
     @Autowired
     private MaterialService materialService;
+    @Autowired
+    private DishRecipeService dishRecipeService;
+    @Autowired
+    private MaterialInventoryService materialInventoryService;
 
     @Autowired
     private JwtUtil jwtUtil;
@@ -98,10 +105,24 @@ public class MaterialController {
         return null;
     }
 
-    // ✅ 修复：添加admin_global权限
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('admin_global', 'admin_store')")
     public Result<Void> deleteMaterial(@PathVariable Long id) {
+        // 依赖检查：是否有菜品配方引用该原料
+        long recipeCount = dishRecipeService.lambdaQuery()
+                .eq(com.restaurant.cashiersystem.entity.DishRecipe::getMaterialId, id)
+                .count();
+        if (recipeCount > 0) {
+            return Result.badRequest("该原料被 " + recipeCount + " 个菜品配方引用，请先解除配方绑定后再删除");
+        }
+        // 依赖检查：是否仍有库存
+        long inventoryCount = materialInventoryService.lambdaQuery()
+                .eq(com.restaurant.cashiersystem.entity.MaterialInventory::getMaterialId, id)
+                .gt(com.restaurant.cashiersystem.entity.MaterialInventory::getCurrentStock, BigDecimal.ZERO)
+                .count();
+        if (inventoryCount > 0) {
+            return Result.badRequest("该原料仍有库存，请先清空库存后再删除");
+        }
         materialService.removeById(id);
         return Result.success();
     }

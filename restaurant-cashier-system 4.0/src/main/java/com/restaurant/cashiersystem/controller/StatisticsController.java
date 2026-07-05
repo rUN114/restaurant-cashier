@@ -123,15 +123,19 @@ public class StatisticsController {
     @GetMapping("/dish-cost-card")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     public Result<List<Map<String, Object>>> dishCostCard(@RequestParam(required = false) Long storeId) {
-        String sf = storeId != null ? " AND d.store_id = " + storeId : "";
+        List<Object> params = new java.util.ArrayList<>();
         String sql = "SELECT d.id, d.name, d.price, " +
             "COALESCE(SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)), 0) AS cost, " +
             "CASE WHEN d.price > 0 THEN ROUND((d.price - COALESCE(SUM(dr.used_quantity * COALESCE(mi.cost_price, 0)), 0)) / d.price * 100, 1) ELSE 0 END AS margin " +
             "FROM dishes d LEFT JOIN dish_recipes dr ON dr.dish_id = d.id " +
             "LEFT JOIN material_inventory mi ON mi.material_id = dr.material_id AND mi.store_id = d.store_id " +
-            "WHERE d.deleted_at IS NULL" + sf +
-            " GROUP BY d.id, d.name, d.price ORDER BY margin DESC";
-        return Result.success(jdbcTemplate.queryForList(sql));
+            "WHERE d.deleted_at IS NULL";
+        if (storeId != null) {
+            sql += " AND d.store_id = ?";
+            params.add(storeId);
+        }
+        sql += " GROUP BY d.id, d.name, d.price ORDER BY margin DESC";
+        return Result.success(jdbcTemplate.queryForList(sql, params.toArray()));
     }
 
     /** 高峰时段分析：按小时统计订单数 */
@@ -139,24 +143,35 @@ public class StatisticsController {
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     public Result<List<Map<String, Object>>> peakHours(@RequestParam(required = false) String month,
                                                         @RequestParam(required = false) Long storeId) {
-        String sf = storeId != null ? " AND store_id = " + storeId : "";
-        String monthFilter = month != null ? " AND DATE_FORMAT(created_at, '%Y-%m') = '" + month + "'" : "";
+        List<Object> params = new java.util.ArrayList<>();
         String sql = "SELECT HOUR(created_at) AS hour, COUNT(*) AS cnt " +
-                "FROM orders WHERE status = 'settled'" + sf + monthFilter +
-                " GROUP BY HOUR(created_at) ORDER BY hour";
-        return Result.success(jdbcTemplate.queryForList(sql));
+                "FROM orders WHERE status = 'settled'";
+        if (storeId != null) {
+            sql += " AND store_id = ?";
+            params.add(storeId);
+        }
+        if (month != null) {
+            sql += " AND DATE_FORMAT(created_at, '%Y-%m') = ?";
+            params.add(month);
+        }
+        sql += " GROUP BY HOUR(created_at) ORDER BY hour";
+        return Result.success(jdbcTemplate.queryForList(sql, params.toArray()));
     }
 
     /** 翻台率：每张桌今天被用了几次 */
     @GetMapping("/table-turnover")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     public Result<List<Map<String, Object>>> tableTurnover(@RequestParam(required = false) Long storeId) {
-        String sf = storeId != null ? " AND o.store_id = " + storeId : "";
+        List<Object> params = new java.util.ArrayList<>();
         String sql = "SELECT o.table_number, COUNT(*) AS times, " +
                 "COALESCE(SUM(o.final_amount), 0) AS total " +
-                "FROM orders o WHERE o.status = 'settled' AND DATE(o.settled_at) = CURDATE()" + sf +
-                " GROUP BY o.table_number ORDER BY times DESC";
-        return Result.success(jdbcTemplate.queryForList(sql));
+                "FROM orders o WHERE o.status = 'settled' AND DATE(o.settled_at) = CURDATE()";
+        if (storeId != null) {
+            sql += " AND o.store_id = ?";
+            params.add(storeId);
+        }
+        sql += " GROUP BY o.table_number ORDER BY times DESC";
+        return Result.success(jdbcTemplate.queryForList(sql, params.toArray()));
     }
 
     @GetMapping("/gross-profit")
@@ -179,15 +194,19 @@ public class StatisticsController {
     @GetMapping("/cashier-ranking")
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store')")
     public Result<List<Map<String, Object>>> cashierRanking(@RequestParam(required = false) Long storeId) {
-        String sf = storeId != null ? " AND o.store_id = " + storeId : "";
+        List<Object> params = new java.util.ArrayList<>();
         String sql = "SELECT o.settled_by, COALESCE(u.real_name, u.username, '未知') AS name, " +
                 "COUNT(*) AS orders, COALESCE(SUM(o.final_amount),0) AS amount, " +
                 "COALESCE((SELECT COUNT(*) FROM order_items oi WHERE oi.return_reason IS NOT NULL " +
-                " AND oi.store_id = o.store_id AND DATE(oi.deleted_at) = CURDATE()), 0) AS returns " +
+                " AND oi.store_id = o.store_id AND DATE(oi.created_at) = CURDATE()), 0) AS returns " +
                 "FROM orders o LEFT JOIN users u ON o.settled_by = u.id " +
-                "WHERE o.status = 'settled' AND DATE(o.settled_at) = CURDATE()" + sf +
-                " GROUP BY o.settled_by, u.real_name, u.username, o.store_id ORDER BY amount DESC";
-        return Result.success(jdbcTemplate.queryForList(sql));
+                "WHERE o.status = 'settled' AND DATE(o.settled_at) = CURDATE()";
+        if (storeId != null) {
+            sql += " AND o.store_id = ?";
+            params.add(storeId);
+        }
+        sql += " GROUP BY o.settled_by, u.real_name, u.username, o.store_id ORDER BY amount DESC";
+        return Result.success(jdbcTemplate.queryForList(sql, params.toArray()));
     }
 
     // ===== token 解析工具方法 =====

@@ -121,7 +121,8 @@ public class SeckillController {
                     } catch (Exception e) {
                         log.error("异步创建秒杀订单失败: dishId={}, userId={}, requestId={}",
                                 dishId, uid, requestId, e);
-                        seckillService.rollbackRedis(dishId, uid);
+                        // 更新 result_key 防止用户看到虚假的 SUCCESS
+                        seckillService.rollbackRedisWithResult(dishId, uid, requestId);
                     }
                 }, seckillExecutor);
                 return buildResult("SUCCESS", null, requestId);

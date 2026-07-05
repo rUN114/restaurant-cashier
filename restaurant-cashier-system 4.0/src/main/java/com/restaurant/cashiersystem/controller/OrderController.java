@@ -196,9 +196,21 @@ public class OrderController {
         // 店铺状态校验
         Order order = orderService.getById(orderId);
         if (order != null) storeService.checkStoreActive(order.getStoreId());
-        orderService.settleOrder(orderId, cashierId, paymentMethod,
-                discountAmount, finalAmount, memberId, useMemberDiscount, redeemPoints);
-        return Result.success();
+
+        try {
+            orderService.settleOrder(orderId, cashierId, paymentMethod,
+                    discountAmount, finalAmount, memberId, useMemberDiscount, redeemPoints);
+            return Result.success();
+        } catch (Exception e) {
+            // 结算失败 → 删除幂等 key，允许用户重试
+            if (requestId != null && !requestId.isBlank()) {
+                try {
+                    stringRedisTemplate.delete(IDEMPOTENT_ORDER_PREFIX + requestId);
+                    log.info("结算失败，已删除幂等 key: requestId={}", requestId);
+                } catch (Exception ignored) {}
+            }
+            throw e;
+        }
     }
 
     @PutMapping("/cancel/{orderId}")
@@ -271,11 +283,16 @@ public class OrderController {
         Long storeId = getStoreIdFromToken(request);
         if ("admin_global".equals(getRoleFromToken(request))) storeId = null;
 
-        // 今日该收银员结算的订单
+        // 今日该收银员结算的订单（参数化查询防SQL注入）
+        List<Object> baseParams = new ArrayList<>();
+        baseParams.add(cashierId);
         String baseSql = "SELECT o.payment_method, COUNT(*) AS cnt, COALESCE(SUM(o.final_amount),0) AS amt " +
                 "FROM orders o WHERE o.status = 'settled' AND o.settled_by = ? " +
                 "AND DATE(o.settled_at) = CURDATE()";
-        if (storeId != null) baseSql += " AND o.store_id = " + storeId;
+        if (storeId != null) {
+            baseSql += " AND o.store_id = ?";
+            baseParams.add(storeId);
+        }
         baseSql += " GROUP BY o.payment_method";
 
         List<Map<String, Object>> breakdown = jdbcTemplate.query(baseSql,
@@ -285,7 +302,7 @@ public class OrderController {
                     m.put("count", rs.getInt("cnt"));
                     m.put("amount", rs.getBigDecimal("amt"));
                     return m;
-                }, cashierId);
+                }, baseParams.toArray());
 
         // 计算合计
         int totalOrders = 0;
@@ -296,10 +313,15 @@ public class OrderController {
         }
 
         // 系统今日总营业额（该门店所有收银员合计，用于对账）
+        List<Object> sysParams = new ArrayList<>();
         String sysSql = "SELECT COALESCE(SUM(o.final_amount),0) AS amt FROM orders o " +
                 "WHERE o.status = 'settled' AND DATE(o.settled_at) = CURDATE()";
-        if (storeId != null) sysSql += " AND o.store_id = " + storeId;
-        BigDecimal systemTotal = jdbcTemplate.queryForObject(sysSql, BigDecimal.class);
+        if (storeId != null) {
+            sysSql += " AND o.store_id = ?";
+            sysParams.add(storeId);
+        }
+        BigDecimal systemTotal = jdbcTemplate.queryForObject(sysSql, BigDecimal.class,
+                sysParams.isEmpty() ? null : sysParams.toArray());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("cashierId", cashierId);

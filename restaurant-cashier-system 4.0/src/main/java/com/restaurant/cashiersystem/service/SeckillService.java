@@ -224,7 +224,7 @@ public class SeckillService {
     }
 
     /**
-     * 回滚 Redis 库存（异步落库失败时）
+     * 回滚 Redis 库存（异步落库失败时），同时更新 result_key 防止用户看到虚假的 SUCCESS
      */
     public void rollbackRedis(Long dishId, Long userId) {
         try {
@@ -233,6 +233,20 @@ public class SeckillService {
             log.info("已回滚 Redis 秒杀库存: dishId={}, userId={}", dishId, userId);
         } catch (Exception e) {
             log.error("回滚 Redis 秒杀库存失败: dishId={}, userId={}", dishId, userId, e);
+        }
+    }
+
+    /**
+     * 回滚 Redis 库存并更新结果缓存（异步落库完全失败时调用）
+     */
+    public void rollbackRedisWithResult(Long dishId, Long userId, String requestId) {
+        try {
+            stringRedisTemplate.opsForValue().increment(STOCK_KEY_PREFIX + dishId);
+            stringRedisTemplate.opsForSet().remove(USER_KEY_PREFIX + dishId, userId.toString());
+            stringRedisTemplate.opsForValue().set(RESULT_KEY_PREFIX + requestId, "0", RESULT_TTL);
+            log.info("已回滚 Redis 秒杀库存+结果: dishId={}, userId={}, requestId={}", dishId, userId, requestId);
+        } catch (Exception e) {
+            log.error("回滚 Redis 秒杀库存+结果失败: dishId={}, userId={}, requestId={}", dishId, userId, e);
         }
     }
 
@@ -280,7 +294,8 @@ public class SeckillService {
     }
 
     /**
-     * 预热秒杀库存 — 从 MySQL dishes.seckill_stock 加载到 Redis
+     * 预热秒杀库存 — 从 MySQL dishes.seckill_stock 加载到 Redis。
+     * 使用 SETNX 防止覆盖进行中的秒杀数据；清除上一轮的旧用户集合。
      * @return 加载的库存数量
      */
     public int preloadStock(Long dishId) {
@@ -292,8 +307,16 @@ public class SeckillService {
             throw new IllegalArgumentException("该菜品未设置秒杀库存");
         }
         String stockKey = STOCK_KEY_PREFIX + dishId;
-        stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(dish.getSeckillStock()));
-        log.info("秒杀库存预热完成: dishId={}, stock={}", dishId, dish.getSeckillStock());
+        // SETNX：仅当 key 不存在时设置，防止覆盖进行中的秒杀库存
+        Boolean set = stringRedisTemplate.opsForValue()
+                .setIfAbsent(stockKey, String.valueOf(dish.getSeckillStock()));
+        if (Boolean.TRUE.equals(set)) {
+            // 新一轮秒杀：清除旧用户集合，避免老用户被拒绝
+            stringRedisTemplate.delete(USER_KEY_PREFIX + dishId);
+            log.info("秒杀库存预热完成（新轮次）: dishId={}, stock={}", dishId, dish.getSeckillStock());
+        } else {
+            log.warn("秒杀库存已存在（可能秒杀进行中），跳过预热: dishId={}", dishId);
+        }
         return dish.getSeckillStock();
     }
 

@@ -56,7 +56,8 @@ public class OrderItemController {
                                orderItem.getDishName());
         }
 
-        orderItemService.save(orderItem);
+        // 调用 addDishToOrder 而非 save，确保订单状态检查（仅 in_progress 可加菜）
+        orderItemService.addDishToOrder(orderItem);
         return Result.success(orderItem.getId());
     }
 

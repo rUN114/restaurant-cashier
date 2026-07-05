@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -18,7 +19,15 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /** 乐观锁冲突：两人同时修改同一条数据 */
+    /** 权限不足 — Spring Security 拦截 */
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Result<Void> handleAccessDenied(AccessDeniedException e) {
+        log.warn("权限不足: {}", e.getMessage());
+        return Result.error(403, "权限不足，无法执行此操作");
+    }
+
+    /** 乐观锁冲突 */
     @ExceptionHandler(MyBatisSystemException.class)
     public Result<Void> handleOptimisticLock(MyBatisSystemException e) {
         Throwable cause = e.getCause();
@@ -60,26 +69,27 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleIllegalArg(IllegalArgumentException e) {
-        return Result.error(400, e.getMessage());
+        log.warn("参数非法: {}", e.getMessage());
+        return Result.error(400, "参数错误");
     }
 
     @ExceptionHandler(NullPointerException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleNPE(NullPointerException e) {
         log.error("空指针异常", e);
         return Result.error("服务器内部错误，请联系管理员");
     }
 
-    /**
-     * 业务异常（如库存不足）返回 HTTP 400，前端可正确捕获并展示错误信息
-     */
+    /** 通用 RuntimeException — 返回 500 记录完整堆栈用于排查 */
     @ExceptionHandler(RuntimeException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleRuntimeException(RuntimeException e) {
-        log.warn("业务异常: {}", e.getMessage());
-        return Result.error(e.getMessage());
+        log.error("未预期运行时异常", e);
+        return Result.error("服务器内部错误，请稍后重试");
     }
 
     @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception e) {
         log.error("未捕获异常: {}", e.getMessage(), e);
         return Result.error("服务器内部错误，请联系管理员");

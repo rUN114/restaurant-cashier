@@ -14,6 +14,14 @@ JAR_NAME="restaurant-cashier-system-0.0.1-SNAPSHOT.jar"
 REMOTE_DIR="/root"
 NGINX_DIR="/var/www/vue-app"
 
+# 环境变量检查
+if [ -z "$JWT_SECRET" ] || [ -z "$DEEPSEEK_API_KEY" ]; then
+    echo "❌ 缺少必要的环境变量，请在当前终端设置："
+    echo "   export JWT_SECRET=<your-jwt-secret>"
+    echo "   export DEEPSEEK_API_KEY=<your-deepseek-api-key>"
+    exit 1
+fi
+
 echo "============================================"
 echo "  餐厅收银系统 — 自动部署"
 echo "  $(date '+%Y-%m-%d %H:%M:%S')"
@@ -86,7 +94,7 @@ ENDSSH
 echo ""
 echo "[6/6] 启动后端..."
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$SERVER" "
-cd /root && nohup java -jar $JAR_NAME \
+cd /root && export JWT_SECRET='${JWT_SECRET}' DEEPSEEK_API_KEY='${DEEPSEEK_API_KEY}' && nohup java -jar $JAR_NAME \
   --spring.profiles.active=prod \
   --spring.datasource.url='jdbc:mysql://localhost:3306/restaurant_chain?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowMultiQueries=true' \
   --spring.data.redis.host=localhost \

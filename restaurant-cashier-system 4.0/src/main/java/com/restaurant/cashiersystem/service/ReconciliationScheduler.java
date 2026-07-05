@@ -164,7 +164,10 @@ public class ReconciliationScheduler {
                                 userId, order.getId(), requestId);
                         totalCompensated++;
                     } catch (Exception e) {
-                        log.error("对账补偿失败: dishId={}, userId={}", dishId, userIdStr, e);
+                        log.error("对账补偿失败，从 Redis set 移除防止死循环: dishId={}, userId={}", dishId, userIdStr, e);
+                        try {
+                            seckillService.rollbackRedis(dishId, Long.valueOf(userIdStr));
+                        } catch (Exception ignored) {}
                     }
                 }
             }

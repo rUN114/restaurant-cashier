@@ -139,14 +139,19 @@ public class MemberCheckoutService {
         }
 
         vo.setDiscountAmount(discountAmount);
-        vo.setMaxRedeemPoints(vo.getAvailablePoints()); // 简化：显示可用积分作为最大参考
+        // 最大可抵扣积分 = min(可用积分, 基于订单金额30%上限)
+        int maxByPercent = finalAmount.multiply(new BigDecimal(redeemRate))
+                .multiply(getRedeemMaxPercent())
+                .setScale(0, RoundingMode.DOWN).intValue();
+        vo.setMaxRedeemPoints(Math.min(member.getAvailablePoints(), maxByPercent));
         vo.setRedeemPoints(actualRedeemPoints);
         vo.setRedeemAmount(redeemAmount);
         vo.setFinalPayAmount(finalAmount);
 
         // 预计获得积分（基于实付金额）
         int pointsPerYuan = getPointsPerYuan();
-        int expectedPoints = finalAmount.intValue() * pointsPerYuan;
+        int expectedPoints = finalAmount.multiply(BigDecimal.valueOf(pointsPerYuan))
+                .setScale(0, RoundingMode.DOWN).intValue();
         vo.setExpectedPoints(expectedPoints);
 
         log.info("会员结算: memberId={}, 原价={}, 折扣={}, 抵现={}, 实付={}",

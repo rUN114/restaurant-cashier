@@ -21,6 +21,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 
 @Tag(name = "库存管理", description = "按门店查询原料库存、调整库存")
@@ -54,7 +55,7 @@ public class MaterialInventoryController {
     }
 
     /**
-     * 库存调整（进货/出库），自动生成记录。
+     * 库存调整（进货/出库），自动生成出入库记录。
      * 进货时 quantity 为采购单位数量，后端按 unit_rate 换算成库存单位。
      * 出库时 quantity 直接为库存单位。
      */
@@ -69,6 +70,9 @@ public class MaterialInventoryController {
         BigDecimal quantity = new BigDecimal(body.get("quantity").toString());
         Long operatorId = getUserIdFromToken(request);
 
+        if (operatorId == null) {
+            return Result.unauthorized("无法获取操作人信息，请重新登录");
+        }
         if (quantity.compareTo(BigDecimal.ZERO) == 0) {
             return Result.badRequest("调整数量不能为0");
         }
@@ -77,36 +81,38 @@ public class MaterialInventoryController {
 
         // 进货：查原料采购单位换算率
         BigDecimal unitRate = BigDecimal.ONE;
-        BigDecimal purchaseQty = quantity;        // 采购单位数量（存 purchase 表）
-        BigDecimal stockQty = quantity;            // 库存单位数量（实际加减库存）
+        BigDecimal purchaseQty = quantity;
+        BigDecimal stockQty = quantity;
         if (isStockIn) {
             var material = materialService.getById(materialId);
             if (material != null && material.getUnitRate() != null
                     && material.getUnitRate().compareTo(BigDecimal.ZERO) > 0) {
                 unitRate = material.getUnitRate();
-                purchaseQty = quantity;                    // 前端传的就是采购单位数
-                stockQty = quantity.multiply(unitRate);    // 换算成库存单位
+                stockQty = quantity.multiply(unitRate);
                 log.info("进货单位换算：materialId={}, {}采购单位 × {} = {}库存单位",
                         materialId, purchaseQty, unitRate, stockQty);
             }
         }
 
-        LambdaQueryWrapper<MaterialInventory> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(MaterialInventory::getStoreId, storeId);
-        wrapper.eq(MaterialInventory::getMaterialId, materialId);
-        MaterialInventory inv = materialInventoryService.getOne(wrapper);
+        // 行锁查询（FOR UPDATE 防并发丢更新）
+        MaterialInventory inv = materialInventoryService.lambdaQuery()
+                .eq(MaterialInventory::getStoreId, storeId)
+                .eq(MaterialInventory::getMaterialId, materialId)
+                .last("FOR UPDATE")
+                .one();
 
         BigDecimal beforeStock;
         BigDecimal afterStock;
-        BigDecimal unitPrice = null;
+        BigDecimal unitPrice = null;  // 采购单位价
 
-        // 进货：解析采购单价
         if (isStockIn) {
             try {
                 if (body.get("unitPrice") != null) {
                     unitPrice = new BigDecimal(body.get("unitPrice").toString());
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.warn("unitPrice 解析失败: {}", body.get("unitPrice"), e);
+            }
             if (unitPrice == null) unitPrice = BigDecimal.ZERO;
         }
 
@@ -118,21 +124,33 @@ public class MaterialInventoryController {
                 inv.setStoreId(storeId);
                 inv.setMaterialId(materialId);
                 inv.setCurrentStock(afterStock);
-                inv.setCostPrice(unitPrice);
+                // 库存单位成本价 = 采购单位价 / unitRate
+                BigDecimal inventoryUnitPrice = unitRate.compareTo(BigDecimal.ZERO) > 0
+                        ? unitPrice.divide(unitRate, 4, RoundingMode.HALF_UP) : unitPrice;
+                inv.setCostPrice(inventoryUnitPrice);
                 materialInventoryService.save(inv);
-                log.info("新建库存记录：storeId={}, materialId={}, stock={}", storeId, materialId, stockQty);
+                log.info("新建库存记录：storeId={}, materialId={}, stock={}, costPrice={}",
+                        storeId, materialId, stockQty, inventoryUnitPrice);
             } else {
                 return Result.badRequest("该原料无库存记录，不能出库");
             }
         } else {
-            beforeStock = inv.getCurrentStock();
+            beforeStock = inv.getCurrentStock() != null ? inv.getCurrentStock() : BigDecimal.ZERO;
             afterStock = beforeStock.add(stockQty);
             if (afterStock.compareTo(BigDecimal.ZERO) < 0) {
                 return Result.badRequest("库存不足，当前库存=" + beforeStock + "，出库=" + stockQty.abs());
             }
             inv.setCurrentStock(afterStock);
+            // 进货时：移动加权平均计算库存单位成本价
             if (isStockIn && unitPrice != null && unitPrice.compareTo(BigDecimal.ZERO) > 0) {
-                inv.setCostPrice(unitPrice);
+                BigDecimal oldCostPrice = inv.getCostPrice() != null ? inv.getCostPrice() : BigDecimal.ZERO;
+                BigDecimal oldTotalCost = beforeStock.multiply(oldCostPrice);
+                BigDecimal newTotalCost = purchaseQty.multiply(unitPrice);
+                BigDecimal totalStock = afterStock;
+                if (totalStock.compareTo(BigDecimal.ZERO) > 0) {
+                    inv.setCostPrice(oldTotalCost.add(newTotalCost)
+                            .divide(totalStock, 4, RoundingMode.HALF_UP));
+                }
             }
             materialInventoryService.updateById(inv);
             log.info("调整库存：storeId={}, materialId={}, 原库存={}, 调整量={}, 新库存={}",
@@ -216,15 +234,19 @@ public class MaterialInventoryController {
         if (storeId != null) wrapper.eq(MaterialInventory::getStoreId, storeId);
         List<MaterialInventory> all = materialInventoryService.list(wrapper);
 
+        // HashMap 预构建索引 O(N+M) 替代 stream.filter O(N×M)
         var materialWrapper = new LambdaQueryWrapper<com.restaurant.cashiersystem.entity.Material>();
         if (storeId != null) materialWrapper.eq(com.restaurant.cashiersystem.entity.Material::getStoreId, storeId);
         List<com.restaurant.cashiersystem.entity.Material> materials = materialService.list(materialWrapper);
+        Map<Long, com.restaurant.cashiersystem.entity.Material> materialMap = new HashMap<>();
+        for (var m : materials) {
+            materialMap.put(m.getId(), m);
+        }
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (MaterialInventory inv : all) {
-            com.restaurant.cashiersystem.entity.Material mat = materials.stream()
-                    .filter(m -> m.getId().equals(inv.getMaterialId()))
-                    .findFirst().orElse(null);
+            if (inv.getCurrentStock() == null) continue;  // null 保护
+            var mat = materialMap.get(inv.getMaterialId());  // O(1) Map 查找
             if (mat != null && mat.getWarningStock() != null
                     && mat.getWarningStock().compareTo(BigDecimal.ZERO) > 0
                     && inv.getCurrentStock().compareTo(mat.getWarningStock()) < 0) {

@@ -4,12 +4,14 @@ import com.restaurant.cashiersystem.common.PageResult;
 import com.restaurant.cashiersystem.common.Result;
 import com.restaurant.cashiersystem.dto.LoginRequest;
 import com.restaurant.cashiersystem.dto.LoginResponse;
+import com.restaurant.cashiersystem.dto.PasswordUpdateDTO;
 import com.restaurant.cashiersystem.dto.UserDTO;
 import com.restaurant.cashiersystem.entity.LoginLog;
 import com.restaurant.cashiersystem.entity.Role;
 import com.restaurant.cashiersystem.entity.Store;
 import com.restaurant.cashiersystem.entity.User;
 import com.restaurant.cashiersystem.service.LoginLogService;
+import com.restaurant.cashiersystem.service.LoginRateLimiter;
 import com.restaurant.cashiersystem.service.StoreService;
 import com.restaurant.cashiersystem.service.UserService;
 import cloud.tianai.captcha.application.ImageCaptchaApplication;
@@ -37,9 +39,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Tag(name = "用户管理", description = "用户登录、注册、CRUD 及关联查询")
@@ -66,6 +70,9 @@ public class UserController {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private LoginRateLimiter loginRateLimiter;
 
     @Value("${captcha.tianai.enabled:true}")
     private boolean captchaEnabled;
@@ -122,7 +129,9 @@ public class UserController {
         User user = new User();
         BeanUtils.copyProperties(userDTO, user);
         if (user.getPassword() == null || user.getPassword().isBlank()) {
-            user.setPassword(new BCryptPasswordEncoder().encode("123456"));
+            String randomPwd = generateRandomPassword();
+            user.setPassword(new BCryptPasswordEncoder().encode(randomPwd));
+            log.info("为用户 {} 生成随机初始密码", userDTO.getUsername());
         } else {
             user.setPassword(new BCryptPasswordEncoder().encode(user.getPassword()));
         }
@@ -180,6 +189,39 @@ public class UserController {
         return Result.success();
     }
 
+    @Operation(summary = "修改密码", description = "当前用户修改自己的密码，需验证旧密码，改后强制重新登录")
+    @PutMapping("/change-password")
+    public Result<Void> changePassword(@RequestBody @Valid PasswordUpdateDTO dto,
+                                        HttpServletRequest request) {
+        Long userId = getUserIdFromToken(request);
+        if (userId == null) {
+            return Result.error(401, "未登录或登录已过期");
+        }
+        User user = userService.getById(userId);
+        if (user == null) {
+            return Result.error("用户不存在");
+        }
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+
+        // 验证旧密码
+        if (!encoder.matches(dto.getOldPassword(), user.getPassword())) {
+            return Result.error("旧密码不正确");
+        }
+        // 新旧密码不能相同
+        if (encoder.matches(dto.getNewPassword(), user.getPassword())) {
+            return Result.error("新密码不能与旧密码相同");
+        }
+
+        user.setPassword(encoder.encode(dto.getNewPassword()));
+        userService.updateById(user);
+
+        // 改密码后撤销所有旧 Token，强制重新登录
+        revokeUserToken(userId);
+        log.info("用户 {} 密码已修改，已撤销所有旧token", userId);
+
+        return Result.success();
+    }
+
     @GetMapping("/{id:\\d+}")
     public Result<User> getUserById(@PathVariable Long id) {
         User user = userService.getById(id);
@@ -221,6 +263,13 @@ public class UserController {
     public Result<LoginResponse> login(@RequestBody LoginRequest loginRequest,
                                        HttpServletRequest request) {
 
+        // ---- 登录频率限制（先于验证码，防止接口被刷） ----
+        String clientIp = getClientIp(request);
+        String rateLimitMsg = loginRateLimiter.checkBeforeLogin(loginRequest.getUsername(), clientIp);
+        if (rateLimitMsg != null) {
+            return Result.error(429, rateLimitMsg);
+        }
+
         // ---- 滑块验证码校验（dev 环境自动跳过） ----
         if (captchaEnabled) {
             String captchaId = loginRequest.getCaptchaId();
@@ -240,7 +289,7 @@ public class UserController {
         // ---- 验证码校验结束 ----
 
         LoginLog loginLog = new LoginLog();
-        loginLog.setLoginIp(getClientIp(request));
+        loginLog.setLoginIp(clientIp);
         loginLog.setLoginDevice(request.getHeader("User-Agent"));
         loginLog.setCreatedAt(LocalDateTime.now());
 
@@ -249,6 +298,7 @@ public class UserController {
             User user = userService.login(loginRequest.getUsername(), loginRequest.getPassword());
 
             if (user == null) {
+                loginRateLimiter.recordFailedAttempt(loginRequest.getUsername(), clientIp);
                 loginLog.setLoginStatus(0);
                 loginLog.setStoreId(null);
                 loginLogService.save(loginLog);
@@ -257,6 +307,7 @@ public class UserController {
             }
 
             if (user.getStatus() == null || user.getStatus() != 1 || user.getDeletedAt() != null) {
+                loginRateLimiter.recordFailedAttempt(loginRequest.getUsername(), clientIp);
                 loginLog.setLoginStatus(0);
                 loginLog.setUserId(user.getId());
                 loginLog.setStoreId(user.getStoreId());
@@ -272,6 +323,7 @@ public class UserController {
                     Role userRole = userService.getUserRole(user.getId());
                     String roleCode = userRole != null ? userRole.getRoleCode() : null;
                     if (!"admin_global".equals(roleCode)) {
+                        loginRateLimiter.recordFailedAttempt(loginRequest.getUsername(), clientIp);
                         loginLog.setLoginStatus(0);
                         loginLog.setUserId(user.getId());
                         loginLog.setStoreId(user.getStoreId());
@@ -283,7 +335,8 @@ public class UserController {
             }
             // ========== 分店状态校验结束 ==========
 
-            // 登录成功
+            // 登录成功 — 清除失败记录
+            loginRateLimiter.clearAttempts(loginRequest.getUsername(), clientIp);
             loginLog.setLoginStatus(1);
             loginLog.setUserId(user.getId());
             loginLog.setStoreId(user.getStoreId());
@@ -305,6 +358,7 @@ public class UserController {
             log.info("登录成功：userId={}, username={}", user.getId(), user.getUsername());
             return Result.success(response);
         } catch (Exception e) {
+            loginRateLimiter.recordFailedAttempt(loginRequest.getUsername(), clientIp);
             loginLog.setLoginStatus(0);
             loginLogService.save(loginLog);
             log.error("登录异常：", e);
@@ -352,6 +406,47 @@ public class UserController {
     private static final String TOKEN_REVOKED_PREFIX = "token:revoked:";
     /** 黑名单保留 30 天，覆盖 token 最长有效期 */
     private static final Duration REVOKE_TTL = Duration.ofDays(30);
+
+    /**
+     * 生成8位随机强密码，包含大写字母、小写字母、数字和特殊字符。
+     * 排除易混淆字符（I/O/l/0/1）。
+     */
+    private String generateRandomPassword() {
+        String upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        String lower = "abcdefghijkmnopqrstuvwxyz";
+        String digits = "23456789";
+        String specials = "!@#$%^&*";
+        String all = upper + lower + digits + specials;
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(8);
+        sb.append(upper.charAt(random.nextInt(upper.length())));
+        sb.append(lower.charAt(random.nextInt(lower.length())));
+        sb.append(digits.charAt(random.nextInt(digits.length())));
+        sb.append(specials.charAt(random.nextInt(specials.length())));
+        for (int i = 4; i < 8; i++) {
+            sb.append(all.charAt(random.nextInt(all.length())));
+        }
+        List<Character> chars = new ArrayList<>();
+        for (char c : sb.toString().toCharArray()) chars.add(c);
+        Collections.shuffle(chars, random);
+        StringBuilder result = new StringBuilder();
+        for (char c : chars) result.append(c);
+        return result.toString();
+    }
+
+    private Long getUserIdFromToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtUtil.parseToken(authHeader.substring(7));
+                String sub = claims.getSubject();
+                return sub != null ? Long.valueOf(sub) : null;
+            } catch (Exception e) {
+                log.error("解析token中的用户ID失败", e);
+            }
+        }
+        return null;
+    }
 
     /**
      * 撤销用户所有已签发 token：在 Redis 中记录当前时间戳，

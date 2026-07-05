@@ -37,14 +37,14 @@ public class KDSController {
     public Result<Map<String, List<KitchenItemVO>>> kitchenBoard(HttpServletRequest request) {
         Long storeId = getStoreIdFromToken(request);
         List<OrderItem> items = orderItemService.getInProgressItemsByStore(storeId);
+        // 批量加载订单表号，消除 N+1 查询
+        Map<Long, String> orderTableMap = buildOrderTableMap(items);
         List<KitchenItemVO> vos = items.stream()
                 .filter(i -> !"SERVED".equals(i.getKitchenStatus()))
-                .map(this::toVO)
+                .map(i -> toVO(i, orderTableMap))
                 .sorted((a, b) -> {
-                    // 催单置顶
                     if (a.getBumpCount() > 0 && b.getBumpCount() == 0) return -1;
                     if (b.getBumpCount() > 0 && a.getBumpCount() == 0) return 1;
-                    // 再按时间倒序
                     return b.getCreatedAt().compareTo(a.getCreatedAt());
                 })
                 .collect(Collectors.toList());
@@ -91,8 +91,9 @@ public class KDSController {
     @PreAuthorize("hasAnyAuthority('admin_global','admin_store','waiter','cashier')")
     public Result<List<Map<String, Object>>> waiterBoard(HttpServletRequest request) {
         Long storeId = getStoreIdFromToken(request);
-        // 按订单分组
         List<OrderItem> items = orderItemService.getInProgressItemsByStore(storeId);
+        // 批量加载订单表号
+        Map<Long, String> orderTableMap = buildOrderTableMap(items);
         Map<Long, List<OrderItem>> grouped = items.stream()
                 .collect(Collectors.groupingBy(OrderItem::getOrderId));
 
@@ -100,10 +101,9 @@ public class KDSController {
         for (Map.Entry<Long, List<OrderItem>> e : grouped.entrySet()) {
             Map<String, Object> order = new LinkedHashMap<>();
             order.put("orderId", e.getKey());
-            order.put("items", e.getValue().stream().map(this::toVO).collect(Collectors.toList()));
-            // 取订单的桌号
-            var orderEntity = orderService.getById(e.getKey());
-            order.put("tableNumber", orderEntity != null ? orderEntity.getTableNumber() : "");
+            order.put("items", e.getValue().stream()
+                    .map(i -> toVO(i, orderTableMap)).collect(Collectors.toList()));
+            order.put("tableNumber", orderTableMap.getOrDefault(e.getKey(), ""));
             orders.add(order);
         }
         return Result.success(orders);
@@ -158,7 +158,19 @@ public class KDSController {
 
     // ========== 内部 ==========
 
-    private KitchenItemVO toVO(OrderItem i) {
+    /** 批量查询订单表号，消除 N+1 查询 */
+    private Map<Long, String> buildOrderTableMap(List<OrderItem> items) {
+        Set<Long> orderIds = items.stream().map(OrderItem::getOrderId).collect(Collectors.toSet());
+        if (orderIds.isEmpty()) return Map.of();
+        Map<Long, String> map = new HashMap<>();
+        for (Long oid : orderIds) {
+            var order = orderService.getById(oid);
+            if (order != null) map.put(oid, order.getTableNumber());
+        }
+        return map;
+    }
+
+    private KitchenItemVO toVO(OrderItem i, java.util.Map<Long, String> orderTableMap) {
         KitchenItemVO v = new KitchenItemVO();
         v.setId(i.getId());
         v.setOrderId(i.getOrderId());
@@ -170,9 +182,7 @@ public class KDSController {
         v.setRemark(i.getRemark());
         v.setWaitSeconds(i.getCreatedAt() != null
                 ? ChronoUnit.SECONDS.between(i.getCreatedAt(), LocalDateTime.now()) : 0);
-        // 从订单查桌号
-        var order = orderService.getById(i.getOrderId());
-        if (order != null) v.setTableNumber(order.getTableNumber());
+        v.setTableNumber(orderTableMap.getOrDefault(i.getOrderId(), ""));
         return v;
     }
 

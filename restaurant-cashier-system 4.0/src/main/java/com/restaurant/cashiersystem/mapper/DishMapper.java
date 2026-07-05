@@ -3,6 +3,7 @@ package com.restaurant.cashiersystem.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.restaurant.cashiersystem.entity.Dish;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
@@ -14,5 +15,5 @@ public interface DishMapper extends BaseMapper<Dish> {
      */
     @Update("UPDATE dishes SET seckill_stock = seckill_stock - 1, version = version + 1 " +
             "WHERE id = #{dishId} AND seckill_stock > 0 AND version = #{version}")
-    int deductSeckillStock(Long dishId, Integer version);
+    int deductSeckillStock(@Param("dishId") Long dishId, @Param("version") Integer version);
 }

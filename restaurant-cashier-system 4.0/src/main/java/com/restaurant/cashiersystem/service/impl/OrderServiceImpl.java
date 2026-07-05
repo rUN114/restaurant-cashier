@@ -117,7 +117,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 memberService.deductPoints(memberId, redeemPoints);
             }
             int pointsPerYuan = sysConfigService.getIntValue("member.points_per_yuan", 1);
-            int earnedPoints = settledAmount.intValue() * pointsPerYuan;
+            int earnedPoints = settledAmount.multiply(BigDecimal.valueOf(pointsPerYuan))
+                    .setScale(0, java.math.RoundingMode.DOWN).intValue();
             memberService.addConsumptionAndPoints(memberId, settledAmount,
                     Math.max(0, earnedPoints));
         }
@@ -245,7 +246,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                         -totalPointsChange);
             }
         } catch (Exception e) {
-            log.warn("反结账-会员积分回滚失败: orderId={}", orderId, e);
+            log.error("反结账-会员积分回滚失败，事务即将回滚: orderId={}", orderId, e);
+            throw new RuntimeException("积分回滚失败，反结账已取消", e);
         }
 
         // 4. 桌台并发检查：该桌若已有其他进行中订单，禁止反结账

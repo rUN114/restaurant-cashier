@@ -26,6 +26,6 @@ public class Store {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    @TableField(value = "deleted_at", fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime deletedAt;  // 软删除，查询时注意过滤 NULL
+    @TableLogic
+    private LocalDateTime deletedAt;  // 软删除
 }
