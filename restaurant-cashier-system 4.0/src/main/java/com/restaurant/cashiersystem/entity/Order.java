@@ -28,4 +28,10 @@ public class Order {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
+
+    // ---- 秒杀/幂等相关字段 ----
+    /** 幂等请求ID（秒杀/防重） */
+    private String requestId;
+    /** 订单类型 NORMAL / SECKILL */
+    private String orderType;
 }

@@ -29,6 +29,16 @@ public class Dish {
     /** 菜品标签，逗号分隔 如: 招牌,微辣,素食 */
     private String tags;
 
+    // ---- 秒杀相关字段 ----
+    /** 秒杀库存（独立于日常库存） */
+    private Integer seckillStock;
+    /** 秒杀价格 */
+    private BigDecimal seckillPrice;
+    /** 秒杀开始时间 */
+    private LocalDateTime seckillStartTime;
+    /** 秒杀结束时间 */
+    private LocalDateTime seckillEndTime;
+
     @Version
     private Integer version;
 
