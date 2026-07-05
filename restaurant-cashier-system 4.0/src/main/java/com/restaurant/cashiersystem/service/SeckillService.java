@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -63,8 +64,9 @@ public class SeckillService {
 
     /**
      * 查询秒杀结果 — 客户端超时/丢包后通过此接口确认
+     * <p>requestId 全局唯一（uk_request_id），无需 dishId/userId 辅助定位</p>
      */
-    public String queryResult(String requestId, Long dishId, Long userId) {
+    public String queryResult(String requestId) {
         try {
             String key = RESULT_KEY_PREFIX + requestId;
             String result = stringRedisTemplate.opsForValue().get(key);
@@ -159,7 +161,7 @@ public class SeckillService {
             throw new RuntimeException("已被抢光");
         }
 
-        // 3. 创建订单
+        // 3. 创建订单（唯一索引 uk_request_id 兜底竞态）
         Order order = new Order();
         order.setOrderNo(generateOrderNo());
         order.setStoreId(dish.getStoreId());
@@ -173,7 +175,20 @@ public class SeckillService {
         order.setCreatedAt(LocalDateTime.now());
         order.setOrderType("SECKILL");
         order.setRequestId(requestId);
-        orderMapper.insert(order);
+        try {
+            orderMapper.insert(order);
+        } catch (DuplicateKeyException e) {
+            // TOCTOU 竞态：另一个线程已为同一 requestId 创建了订单
+            log.warn("requestId 重复，查询已有订单: requestId={}", requestId);
+            LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
+            orderWrapper.eq(Order::getRequestId, requestId);
+            Order existingOrder = orderMapper.selectOne(orderWrapper);
+            if (existingOrder != null) {
+                return existingOrder;
+            }
+            // 理论上不会到这里，但万一到了就当异常抛出
+            throw new RuntimeException("订单创建冲突，请重试", e);
+        }
 
         // 4. 更新秒杀记录
         if (existingRecord != null) {
@@ -187,7 +202,18 @@ public class SeckillService {
             record.setRequestId(requestId);
             record.setStatus("SUCCESS");
             record.setOrderId(order.getId());
-            seckillRecordMapper.insert(record);
+            try {
+                seckillRecordMapper.insert(record);
+            } catch (DuplicateKeyException e) {
+                // requestId 已存在（另一线程先插入了），更新而非插入
+                log.warn("秒杀记录已存在，改为更新: requestId={}", requestId);
+                SeckillRecord dup = seckillRecordMapper.selectOne(recordWrapper);
+                if (dup != null) {
+                    dup.setStatus("SUCCESS");
+                    dup.setOrderId(order.getId());
+                    seckillRecordMapper.updateById(dup);
+                }
+            }
         }
 
         log.info("秒杀订单创建成功: dishId={}, userId={}, orderId={}, requestId={}",
@@ -205,18 +231,6 @@ public class SeckillService {
             log.info("已回滚 Redis 秒杀库存: dishId={}, userId={}", dishId, userId);
         } catch (Exception e) {
             log.error("回滚 Redis 秒杀库存失败: dishId={}, userId={}", dishId, userId, e);
-        }
-    }
-
-    /**
-     * 回滚单用户秒杀结果（已抢过时回退）
-     */
-    public void rollbackSingleUser(Long dishId, Long userId) {
-        try {
-            stringRedisTemplate.opsForValue().increment(STOCK_KEY_PREFIX + dishId);
-            stringRedisTemplate.opsForSet().remove(USER_KEY_PREFIX + dishId, userId.toString());
-        } catch (Exception e) {
-            log.error("回滚 Redis 秒杀用户失败: dishId={}, userId={}", dishId, userId, e);
         }
     }
 
@@ -253,7 +267,12 @@ public class SeckillService {
         record.setUserId(userId);
         record.setRequestId(requestId);
         record.setStatus("PENDING");
-        seckillRecordMapper.insert(record);
+        try {
+            seckillRecordMapper.insert(record);
+        } catch (DuplicateKeyException e) {
+            // 并发重试导致同一 requestId 被多次标记 PENDING，第一条已生效，忽略即可
+            log.warn("PENDING 记录重复（requestId={}），已忽略", requestId);
+        }
     }
 
     private String generateOrderNo() {

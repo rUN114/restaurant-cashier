@@ -58,8 +58,7 @@ public class ReconciliationScheduler {
         int resolved = 0;
         int remaining = 0;
         for (SeckillRecord record : pending) {
-            String result = seckillService.queryResult(
-                    record.getRequestId(), record.getDishId(), record.getUserId());
+            String result = seckillService.queryResult(record.getRequestId());
 
             switch (result) {
                 case "SUCCESS":
@@ -75,16 +74,17 @@ public class ReconciliationScheduler {
                         log.warn("PENDING 补偿失败(库存不足), 标记 ROLLBACK: requestId={}", record.getRequestId());
                         record.setStatus("ROLLBACK");
                         seckillRecordMapper.updateById(record);
-                        seckillService.rollbackSingleUser(record.getDishId(), record.getUserId());
+                        seckillService.rollbackRedis(record.getDishId(), record.getUserId());
                         resolved++;
                     }
                     break;
 
                 case "SOLD_OUT":
                 case "ALREADY_GRABBED":
-                    // Redis 确认失败 → 标记回滚
+                    // Redis 确认失败 → 标记回滚 + 从 Redis set 移除，防止对账重复补偿
                     record.setStatus("ROLLBACK");
                     seckillRecordMapper.updateById(record);
+                    seckillService.rollbackRedis(record.getDishId(), record.getUserId());
                     resolved++;
                     break;
 

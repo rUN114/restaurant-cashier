@@ -1,7 +1,8 @@
 package com.restaurant.cashiersystem.controller;
 
 import com.restaurant.cashiersystem.common.Result;
-import com.restaurant.cashiersystem.entity.Order;
+import com.restaurant.cashiersystem.entity.Dish;
+import com.restaurant.cashiersystem.mapper.DishMapper;
 import com.restaurant.cashiersystem.service.SeckillService;
 import com.restaurant.cashiersystem.util.JwtUtil;
 import io.jsonwebtoken.Claims;
@@ -10,15 +11,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * 秒杀控制器
@@ -48,6 +52,13 @@ public class SeckillController {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private DishMapper dishMapper;
+
+    @Autowired
+    @Qualifier("seckillExecutor")
+    private Executor seckillExecutor;
+
     /**
      * 执行秒杀
      */
@@ -64,8 +75,21 @@ public class SeckillController {
             return Result.unauthorized("请先登录");
         }
 
+        // ---- 秒杀时间窗口校验 ----
+        Dish dish = dishMapper.selectById(dishId);
+        if (dish == null) {
+            return Result.error("菜品不存在");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (dish.getSeckillStartTime() != null && now.isBefore(dish.getSeckillStartTime())) {
+            return Result.error("秒杀尚未开始");
+        }
+        if (dish.getSeckillEndTime() != null && now.isAfter(dish.getSeckillEndTime())) {
+            return Result.error("秒杀已结束");
+        }
+
         // ---- 幂等：先查 Redis 结果缓存 ----
-        String cached = seckillService.queryResult(requestId, dishId, userId);
+        String cached = seckillService.queryResult(requestId);
         if (!"UNKNOWN".equals(cached)) {
             return buildResult(cached, null, requestId);
         }
@@ -89,7 +113,7 @@ public class SeckillController {
 
         switch (code) {
             case 1: {
-                // 抢购成功 → 异步创建订单
+                // 抢购成功 → 异步创建订单（使用专用线程池隔离秒杀流量）
                 final Long uid = userId;
                 CompletableFuture.runAsync(() -> {
                     try {
@@ -99,7 +123,7 @@ public class SeckillController {
                                 dishId, uid, requestId, e);
                         seckillService.rollbackRedis(dishId, uid);
                     }
-                });
+                }, seckillExecutor);
                 return buildResult("SUCCESS", null, requestId);
             }
             case 0:
@@ -131,7 +155,7 @@ public class SeckillController {
             return Result.unauthorized("请先登录");
         }
 
-        String status = seckillService.queryResult(requestId, dishId, userId);
+        String status = seckillService.queryResult(requestId);
         return buildResult(status, null, requestId);
     }
 
@@ -163,8 +187,8 @@ public class SeckillController {
         };
         data.put("message", message);
 
-        // PENDING 和 UNKNOWN 返回 HTTP 200 但 success=false
-        if ("UNKNOWN".equals(status)) {
+        // PENDING 和 UNKNOWN 均非成功状态 — 前端据此展示「结果确认中」
+        if ("PENDING".equals(status) || "UNKNOWN".equals(status)) {
             return Result.error(message);
         }
         return Result.success(data);

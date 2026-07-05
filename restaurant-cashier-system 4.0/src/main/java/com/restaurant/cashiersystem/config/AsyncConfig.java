@@ -23,4 +23,18 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /** 秒杀异步落库专用线程池 — 隔离秒杀流量，不与其他异步任务争抢 */
+    @Bean("seckillExecutor")
+    public Executor seckillExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(20);
+        executor.setQueueCapacity(2000);
+        executor.setThreadNamePrefix("seckill-order-");
+        executor.setRejectedExecutionHandler(
+                new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }
