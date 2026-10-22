@@ -34,3 +34,7 @@ deploy.tar.gz
 # AI Key (不要提交)
 application-secret.yml
 
+# Personal documents and temporary files
+*.tmp
+gen_docx.py
+
