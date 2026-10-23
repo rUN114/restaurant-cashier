@@ -20,4 +20,4 @@ EXPOSE 8088
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD wget -qO- http://localhost:8088/actuator/health | grep -q UP || exit 1
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Dcom.sun.net.ssl.checkRevocation=true", "-Dcom.sun.security.enableCRLDP=true", "-jar", "app.jar"]
